@@ -9,6 +9,7 @@ dependencies = [
     "pypck>=0.7.27",
     "aiomqtt>=2.3.0",
     "pydantic-settings>=2.14.1",
+    "pre-commit>=4.6.0",
 ]
 
 [project.scripts]

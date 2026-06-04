@@ -18,6 +18,7 @@ class LcnConfig(BaseSettings):
     sk_num_tries: int = 0
     acknowledge_commands: bool = False
 
+
 class MqttConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MQTT_", case_sensitive=False)
 

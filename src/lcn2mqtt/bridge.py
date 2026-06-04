@@ -13,7 +13,13 @@ from pypck.connection import PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
 
 from .config import AppConfig
-from .handlers import LedHandler, MotorHandler, OutputHandler, RelayHandler, VariableHandler
+from .handlers import (
+    LedHandler,
+    MotorHandler,
+    OutputHandler,
+    RelayHandler,
+    VariableHandler,
+)
 from .models import Module
 
 _LOG = logging.getLogger(__name__)
@@ -42,7 +48,9 @@ class Bridge:
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
         kind = "g" if lcn_addr.is_group else "m"
-        return f"{self._base_topic()}/{lcn_addr.seg_id:03d}/{kind}{lcn_addr.addr_id:03d}"
+        return (
+            f"{self._base_topic()}/{lcn_addr.seg_id:03d}/{kind}{lcn_addr.addr_id:03d}"
+        )
 
     def _bridge_status_topic(self) -> str:
         return f"{self._base_topic()}/bridge/status"
@@ -125,7 +133,11 @@ class Bridge:
         except ValueError:
             return
 
-        payload = msg.payload.decode("utf-8", errors="replace").strip().lower() if isinstance(msg.payload, (bytes, bytearray)) else str(msg.payload).strip().lower()
+        payload = (
+            msg.payload.decode("utf-8", errors="replace").strip().lower()
+            if isinstance(msg.payload, (bytes, bytearray))
+            else str(msg.payload).strip().lower()
+        )
         _LOG.debug("Cmd %s/%s/%s/%s = %r", seg, addr, kind, idx, payload)
 
         lcn_addr = LcnAddr(seg, addr, False)
@@ -181,7 +193,11 @@ class Bridge:
             if lcn_addr is None:
                 return
             if lcn_addr not in self.modules:
-                _LOG.info("Auto-registering new LCN module %s.%s", lcn_addr.seg_id, lcn_addr.addr_id)
+                _LOG.info(
+                    "Auto-registering new LCN module %s.%s",
+                    lcn_addr.seg_id,
+                    lcn_addr.addr_id,
+                )
                 self.modules[lcn_addr] = Module()
             module = self.modules[lcn_addr]
             prefix = self._addr_prefix(lcn_addr)
