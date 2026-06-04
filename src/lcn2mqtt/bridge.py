@@ -38,7 +38,7 @@ class Bridge:
     # ---------- topic helpers ----------
 
     def _base_topic(self) -> str:
-        return f"/lcn2mqtt/{self.config.lcn.name}"
+        return f"lcn2mqtt/{self.config.lcn.name}"
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
         kind = "g" if lcn_addr.is_group else "m"
@@ -99,7 +99,7 @@ class Bridge:
             topic,
             payload=str(payload),
             qos=self.config.mqtt.qos,
-            retain=self.config.mqtt.retain,
+            retain=True,
         )
 
     async def _mqtt_message_loop(self, mqtt: aiomqtt.Client) -> None:
@@ -121,7 +121,7 @@ class Bridge:
             return
         seg_s, addr_s, kind, idx_s, _ = parts
         try:
-            seg, addr, idx = int(seg_s), int(addr_s), int(idx_s)
+            seg, addr, idx = int(seg_s), int(addr_s[1:]), int(idx_s)
         except ValueError:
             return
 
@@ -130,8 +130,8 @@ class Bridge:
 
         lcn_addr = LcnAddr(seg, addr, False)
         if lcn_addr not in self.modules:
-            _LOG.warning("Command for unknown module %s.%s ignored", seg, addr)
-            return
+            _LOG.info("Auto-registering new LCN module %s.%s via command", seg, addr)
+            self.modules[lcn_addr] = Module()
 
         module_conn = self._get_module_connection(seg, addr)
         if module_conn is None:
@@ -151,13 +151,14 @@ class Bridge:
     async def _connect_lcn(self) -> PchkConnectionManager:
         cfg = self.config.lcn
         settings = {
-            "SK_NUM_TRIES": 3,
+            "ACKNOWLEDGE": cfg.acknowledge_commands,
+            "SK_NUM_TRIES": cfg.sk_num_tries,
             "DIM_MODE": lcn_defs.OutputPortDimMode[cfg.dim_mode],
         }
         pchk = PchkConnectionManager(
             cfg.host, cfg.port, cfg.username, cfg.password, settings=settings
         )
-        await pchk.async_connect(timeout=15)
+        await pchk.async_connect()
         pchk.register_for_inputs(self._on_lcn_input)
         _LOG.info("Connected to LCN-PCHK at %s:%s", cfg.host, cfg.port)
         return pchk
@@ -176,11 +177,11 @@ class Bridge:
 
     async def _dispatch_input(self, inp: inputs.Input) -> None:
         try:
-            lcn_addr = getattr(inp, "physical_source_addr", None)
+            lcn_addr: LcnAddr | None = getattr(inp, "physical_source_addr", None)
             if lcn_addr is None:
                 return
             if lcn_addr not in self.modules:
-                _LOG.info("Auto-registering new LCN module %s.%s", lcn_addr.segment_id, lcn_addr.address_id)
+                _LOG.info("Auto-registering new LCN module %s.%s", lcn_addr.seg_id, lcn_addr.addr_id)
                 self.modules[lcn_addr] = Module()
             module = self.modules[lcn_addr]
             prefix = self._addr_prefix(lcn_addr)

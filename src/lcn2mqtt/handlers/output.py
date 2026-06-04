@@ -26,7 +26,7 @@ class OutputHandler:
     ) -> None:
         idx = inp.output_id + 1  # 0-based -> 1-based
         if module.update_output(idx, float(inp.percent)):
-            await self._publish(f"{prefix}/output/{idx}", f"{inp.percent:.2f}")
+            await self._publish(f"{prefix}/output/{idx}/state", f"{inp.percent:.2f}")
 
     async def handle_command(self, mc: Any, idx: int, payload: str) -> None:
         if not 1 <= idx <= 4:

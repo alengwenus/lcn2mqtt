@@ -33,7 +33,7 @@ class MotorHandler:
         changed = module.update_motors(module_motors)
         if changed[idx - 1]:
             await self._publish(
-                f"{prefix}/motor/{idx}",
+                f"{prefix}/motor/{idx}/state",
                 json.dumps(motor.model_dump(mode="json")),
             )
 

@@ -15,7 +15,8 @@ class LcnConfig(BaseSettings):
     password: str
     name: str = "pchk"
     dim_mode: str = "STEPS200"  # "STEPS50" or "STEPS200"
-
+    sk_num_tries: int = 0
+    acknowledge_commands: bool = False
 
 class MqttConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MQTT_", case_sensitive=False)
@@ -25,7 +26,6 @@ class MqttConfig(BaseSettings):
     username: str | None = None
     password: str | None = None
     qos: int = 0
-    retain: bool = True
 
 
 class AppConfig(BaseSettings):

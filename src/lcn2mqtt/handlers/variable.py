@@ -59,4 +59,4 @@ class VariableHandler:
             return
         value = int(inp.value.to_native())
         if module.update_variable(idx, value):
-            await self._publish(f"{prefix}/var/{idx}", value)
+            await self._publish(f"{prefix}/var/{idx}/state", value)

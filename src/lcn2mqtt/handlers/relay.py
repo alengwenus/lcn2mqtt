@@ -28,7 +28,7 @@ class RelayHandler:
         changed = module.update_relays(states)
         for i, did_change in enumerate(changed, start=1):
             if did_change:
-                await self._publish(f"{prefix}/relay/{i}", states[i - 1].value)
+                await self._publish(f"{prefix}/relay/{i}/state", states[i - 1].value)
 
     async def handle_command(self, mc: Any, idx: int, payload: str) -> None:
         if not 1 <= idx <= 8:
