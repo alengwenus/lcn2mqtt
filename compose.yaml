@@ -1,0 +1,21 @@
+services:
+  lcn2mqtt:
+    build: .
+    image: lcn2mqtt:latest
+    container_name: lcn2mqtt
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Optional: depend on a local broker
+    # depends_on:
+    #   - mosquitto
+
+  # Example broker for local testing (uncomment if needed)
+  # mosquitto:
+  #   image: eclipse-mosquitto:2
+  #   container_name: mosquitto
+  #   restart: unless-stopped
+  #   ports:
+  #     - "1883:1883"
+  #   volumes:
+  #     - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
