@@ -31,11 +31,13 @@ class LedHandler:
     """Handles status updates for LCN LED outputs."""
 
     def __init__(self, publish: Publish) -> None:
+        """Initialize the handler with a publish function."""
         self._publish = publish
 
     async def handle_input(
         self, inp: inputs.ModStatusLedsAndLogicOps, module: Module, prefix: str
     ) -> None:
+        """Handle an LED status input, update the module state, and publish any changes."""
         states = [_led_state(s) for s in inp.states_led]
         changed = module.update_leds(states)
         for i, did_change in enumerate(changed, start=1):

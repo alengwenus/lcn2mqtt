@@ -15,7 +15,7 @@ from pypck.lcn_addr import LcnAddr
 from .config import AppConfig
 from .handlers import (
     LedHandler,
-    MotorHandler,
+    MotorRelayHandler,
     OutputHandler,
     RelayHandler,
     VariableHandler,
@@ -40,7 +40,7 @@ class Bridge:
         self._module_overrides = config.lcn.module_overrides
         self._output_handler = OutputHandler(self._publish)
         self._relay_handler = RelayHandler(self._publish)
-        self._motor_handler = MotorHandler(self._publish)
+        self._motor_relay_handler = MotorRelayHandler(self._publish)
         self._led_handler = LedHandler(self._publish)
         self._variable_handler = VariableHandler(self._publish)
 
@@ -171,8 +171,8 @@ class Bridge:
             await self._relay_handler.handle_command(
                 module_conn, handler, sub_parts, payload
             )
-        elif handler == "motor":
-            await self._motor_handler.handle_command(
+        elif handler == "motor_relays":
+            await self._motor_relay_handler.handle_command(
                 module_conn, handler, sub_parts, payload
             )
         else:
@@ -268,12 +268,11 @@ class Bridge:
                 await self._output_handler.handle_input(inp, module, prefix)
             elif isinstance(inp, inputs.ModStatusRelays):
                 await self._relay_handler.handle_input(inp, module, prefix)
+                await self._motor_relay_handler.handle_input(inp, module, prefix)
             # elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
             #     await self._led_handler.handle_input(inp, module, prefix)
             # elif isinstance(inp, inputs.ModStatusVar):
             #     await self._variable_handler.handle_input(inp, module, prefix)
-            # elif isinstance(inp, inputs.ModStatusMotorPositionBS4):
-            #     await self._motor_handler.handle_input(inp, module, prefix)
             else:
                 _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 

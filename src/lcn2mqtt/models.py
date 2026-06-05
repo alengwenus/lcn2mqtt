@@ -151,14 +151,15 @@ class Module(BaseModel):
                 changed[i - 1] = True
         return changed
 
-    def update_motors(self, motors: list[Motor]) -> list[bool]:
+    def update_motors(self, states: list[MotorState]) -> list[bool]:
         """Update the motor states and return a list of which ones changed."""
-        if len(motors) != 4:
-            raise ValueError(f"Invalid number of motors: {len(motors)}")
+        if len(states) != 4:
+            raise ValueError(f"Invalid number of motors: {len(states)}")
         changed = [False] * 4
         for i in range(1, 5):
-            if getattr(self, f"motor{i}") != motors[i - 1]:
-                setattr(self, f"motor{i}", motors[i - 1])
+            motor = getattr(self, f"motor{i}")
+            if motor.state != states[i - 1]:
+                motor.state = states[i - 1]
                 changed[i - 1] = True
         return changed
 
