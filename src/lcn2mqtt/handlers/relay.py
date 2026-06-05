@@ -31,9 +31,9 @@ class RelayHandler:
                 await self._publish(f"{prefix}/relay/{i}/state", states[i - 1].value)
 
     async def handle_command(
-        self, mc: Any, kind: str, parts: list[str], payload: str
+        self, mc: Any, handler: str, parts: list[str], payload: str
     ) -> None:
-        if kind != "relay":
+        if handler != "relay":
             return
         if len(parts) < 2:  # /<idx>/set
             return

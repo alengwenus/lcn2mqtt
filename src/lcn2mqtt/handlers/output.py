@@ -44,9 +44,9 @@ class OutputHandler:
         await self._publish(f"{prefix}/output/{idx}/brightness", f"{inp.percent:.2f}")
 
     async def handle_command(
-        self, mc: Any, kind: str, parts: list[str], payload: str, module: Module
+        self, mc: Any, handler: str, parts: list[str], payload: str, module: Module
     ) -> None:
-        if kind != "output":
+        if handler != "output":
             return
         # /<idx>/set
         # /<idx>/set_brightness

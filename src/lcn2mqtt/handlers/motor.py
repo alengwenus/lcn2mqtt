@@ -38,8 +38,10 @@ class MotorHandler:
             )
 
     async def handle_command(
-        self, mc: Any, kind: str, parts: list[str], payload: str
+        self, mc: Any, handler: str, parts: list[str], payload: str
     ) -> None:
+        if handler != "motor":
+            return
         if len(parts) < 1:
             return
         try:

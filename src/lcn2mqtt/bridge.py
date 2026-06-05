@@ -35,6 +35,7 @@ class Bridge:
         self._pchk: PchkConnectionManager | None = None
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
+        self._module_overrides = config.lcn.module_overrides
         self._output_handler = OutputHandler(self._publish)
         self._relay_handler = RelayHandler(self._publish)
         self._motor_handler = MotorHandler(self._publish)
@@ -44,13 +45,11 @@ class Bridge:
     # ---------- topic helpers ----------
 
     def _base_topic(self) -> str:
-        return f"lcn2mqtt/{self.config.lcn.name}"
+        return f"{self.config.mqtt.base_topic}"
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
         kind = "g" if lcn_addr.is_group else "m"
-        return (
-            f"{self._base_topic()}/{lcn_addr.seg_id:03d}/{kind}{lcn_addr.addr_id:03d}"
-        )
+        return f"{self._base_topic()}/{kind}{lcn_addr.seg_id:03d}{lcn_addr.addr_id:03d}"
 
     def _bridge_status_topic(self) -> str:
         return f"{self._base_topic()}/bridge/status"
@@ -90,12 +89,12 @@ class Bridge:
             port=cfg.port,
             username=cfg.username,
             password=cfg.password,
-            identifier=f"lcn2mqtt.{self.config.lcn.name}",
+            identifier=f"{self.config.mqtt.base_topic}",
             will=will,
         )
 
     async def _subscribe_command_topics(self, mqtt: aiomqtt.Client) -> None:
-        topic = f"{self._base_topic()}/+/+/+/+/+"
+        topic = f"{self._base_topic()}/+/#"
         await mqtt.subscribe(topic, qos=self.config.mqtt.qos)
         _LOG.info("Subscribed to %s", topic)
 
@@ -124,13 +123,15 @@ class Bridge:
             return
         rest = topic[len(base) + 1 :]
         parts = rest.split("/")
-        # expected: <seg>/<addr>/<kind>/...
-        if len(parts) < 3:
+        # expected: <addr>/<handler>/...
+        if len(parts) < 2:
             return
-        seg_s, addr_s, kind = parts[0], parts[1], parts[2]
-        sub_parts = parts[3:]
+        addr_s, handler = parts[0], parts[1]
+        sub_parts = parts[2:]
         try:
-            seg, addr = int(seg_s), int(addr_s[1:])
+            seg = int(addr_s[1:4])
+            addr = int(addr_s[4:])  # skip m/g
+            is_group = addr_s[0] == "g"  # noqa: F841
         except ValueError:
             return
 
@@ -144,27 +145,27 @@ class Bridge:
         lcn_addr = LcnAddr(seg, addr, False)
         if lcn_addr not in self.modules:
             _LOG.info("Auto-registering new LCN module %s.%s via command", seg, addr)
-            self.modules[lcn_addr] = Module()
+            self.modules[lcn_addr] = self._create_module(lcn_addr)
 
         module_conn = self._get_module_connection(seg, addr)
         if module_conn is None:
             return
 
         module = self.modules[lcn_addr]
-        if kind == "output":
+        if handler == "output":
             await self._output_handler.handle_command(
-                module_conn, kind, sub_parts, payload, module
+                module_conn, handler, sub_parts, payload, module
             )
-        elif kind == "relay":
+        elif handler == "relay":
             await self._relay_handler.handle_command(
-                module_conn, kind, sub_parts, payload
+                module_conn, handler, sub_parts, payload
             )
-        elif kind == "motor":
+        elif handler == "motor":
             await self._motor_handler.handle_command(
-                module_conn, kind, sub_parts, payload
+                module_conn, handler, sub_parts, payload
             )
         else:
-            _LOG.debug("Ignoring command kind %s", kind)
+            _LOG.debug("Ignoring command handler %s", handler)
 
     # ---------- LCN ----------
 
@@ -189,6 +190,42 @@ class Bridge:
         lcn_addr = LcnAddr(seg, addr, False)
         return self._pchk.get_device_connection(lcn_addr)
 
+    @staticmethod
+    def _set_nested_attr(obj: object, parts: list[str], value: str) -> None:
+        """Traverse *parts* on *obj* and set the final attribute to *value*."""
+        if len(parts) == 1:
+            setattr(obj, parts[0], value)
+        else:
+            Bridge._set_nested_attr(getattr(obj, parts[0]), parts[1:], value)
+
+    def _create_module(self, lcn_addr: LcnAddr) -> Module:
+        """Create a Module and apply any env-var overrides for this address."""
+        module = Module()
+        overrides = self._module_overrides.get(
+            (lcn_addr.seg_id, lcn_addr.addr_id, lcn_addr.is_group), {}
+        )
+        for field_path, value in overrides.items():
+            try:
+                Bridge._set_nested_attr(module, field_path.split("."), value)
+                _LOG.debug(
+                    "Applied override %03d.%s%03d %s=%r",
+                    lcn_addr.seg_id,
+                    "g" if lcn_addr.is_group else "m",
+                    lcn_addr.addr_id,
+                    field_path,
+                    value,
+                )
+            except Exception:  # noqa: BLE001
+                _LOG.warning(
+                    "Ignoring invalid override for %03d.%s%03d %s=%r",
+                    lcn_addr.seg_id,
+                    "g" if lcn_addr.is_group else "m",
+                    lcn_addr.addr_id,
+                    field_path,
+                    value,
+                )
+        return module
+
     # ---------- LCN -> MQTT ----------
 
     def _on_lcn_input(self, inp: inputs.Input) -> None:
@@ -206,7 +243,7 @@ class Bridge:
                     lcn_addr.seg_id,
                     lcn_addr.addr_id,
                 )
-                self.modules[lcn_addr] = Module()
+                self.modules[lcn_addr] = self._create_module(lcn_addr)
             module = self.modules[lcn_addr]
             prefix = self._addr_prefix(lcn_addr)
 

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
+
+from dotenv import dotenv_values
 
 from .bridge import Bridge
 from .config import load_config
@@ -22,8 +25,11 @@ def _setup_logging(level: str) -> None:
 
 
 async def _amain() -> None:
+    _log_level = (
+        os.environ.get("LOG_LEVEL") or dotenv_values(".env").get("LOG_LEVEL", "INFO")
+    ).upper()
+    _setup_logging(_log_level)
     config = load_config()
-    _setup_logging(config.log_level)
     log = logging.getLogger("lcn2mqtt")
     log.info("Starting lcn2mqtt bridge")
 
