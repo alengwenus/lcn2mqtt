@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import ValidationError
 from pypck import inputs, lcn_defs
 
-from ..models import Module, Output
+from ..models import Module, Output, OutputState
 
 _LOG = logging.getLogger(__name__)
 
@@ -29,15 +29,29 @@ class OutputHandler:
         idx = inp.output_id + 1  # 0-based -> 1-based
         output = getattr(module, f"output{idx}")
 
-        if output.update_brightness(inp.percent):
-            await self._publish(f"{prefix}/output/{idx}/state", f"{inp.percent:.2f}")
+        print(inp.percent)
+
+        state_changed = output.update_state(
+            OutputState.ON if inp.percent > 0 else OutputState.OFF
+        )
+        output.update_brightness(inp.percent)
+
+        if state_changed:
+            await self._publish(
+                f"{prefix}/output/{idx}/state",
+                output.state.value if output.state else None,
+            )
+        await self._publish(f"{prefix}/output/{idx}/brightness", f"{inp.percent:.2f}")
 
     async def handle_command(
         self, mc: Any, kind: str, parts: list[str], payload: str, module: Module
     ) -> None:
         if kind != "output":
             return
-        if len(parts) < 2:  # /<idx>/set or /<idx>/set_transition
+        # /<idx>/set
+        # /<idx>/set_brightness
+        # /<idx>/set_transition
+        if len(parts) < 2:
             return
         try:
             idx = int(parts[0])
@@ -49,7 +63,14 @@ class OutputHandler:
 
         output: Output = getattr(module, f"output{idx}")
 
-        if action == "set_transition":
+        if action == "set_brightness":
+            try:
+                brightness = float(payload)
+                output.brightness = brightness
+            except (ValueError, ValidationError):
+                _LOG.warning("Invalid brightness payload %r", payload)
+                return
+        elif action == "set_transition":
             try:
                 transition = int(payload)
                 output.transition = transition
@@ -57,24 +78,32 @@ class OutputHandler:
                 _LOG.warning("Invalid transition payload %r", payload)
                 return
             return
+        elif action == "set":
+            transition_ms = (
+                output.transition
+                if output.transition is not None
+                else _DEFAULT_TRANSITION_MS
+            )
+            ramp = lcn_defs.time_to_ramp_value(transition_ms)
 
-        # action == "set"
-        if payload in {"on", "true"}:
-            brightness = 100.0
-        elif payload in {"off", "false"}:
-            brightness = 0.0
-        else:
-            try:
-                brightness = float(payload)
-            except ValueError:
-                _LOG.warning("Invalid output payload %r", payload)
-                return
-        brightness = max(0.0, min(100.0, brightness))
-        transition_ms = (
-            output.transition
-            if output.transition is not None
-            else _DEFAULT_TRANSITION_MS
-        )
+            if payload == "on":
+                if output.state == OutputState.OFF:
+                    await mc.toggle_output(idx - 1, ramp, to_memory=True)
+                    return
+                brightness = (
+                    output.brightness if output.brightness is not None else 100.0
+                )
+            elif payload == "off":
+                if output.state == OutputState.ON:
+                    await mc.toggle_output(idx - 1, ramp, to_memory=True)
+                    return
+                brightness = 0.0
+            else:  # payload is a brightness value
+                try:
+                    brightness = float(payload)
+                except ValueError:
+                    _LOG.warning("Invalid output payload %r", payload)
+                    return
+            brightness = max(0.0, min(100.0, brightness))
 
-        ramp = lcn_defs.time_to_ramp_value(transition_ms)
-        await mc.dim_output(idx - 1, brightness, ramp)
+            await mc.dim_output(idx - 1, brightness, ramp)

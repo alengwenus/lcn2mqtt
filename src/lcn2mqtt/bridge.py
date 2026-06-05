@@ -108,6 +108,7 @@ class Bridge:
             qos=self.config.mqtt.qos,
             retain=True,
         )
+        _LOG.debug("Dispatched: %s = %r", topic, payload)
 
     async def _mqtt_message_loop(self, mqtt: aiomqtt.Client) -> None:
         async for msg in mqtt.messages:
@@ -138,7 +139,7 @@ class Bridge:
             if isinstance(msg.payload, (bytes, bytearray))
             else str(msg.payload).strip().lower()
         )
-        _LOG.debug("Dispatch: %s = %r", topic, payload)
+        # _LOG.debug("Received: %s = %r", topic, payload)
 
         lcn_addr = LcnAddr(seg, addr, False)
         if lcn_addr not in self.modules:

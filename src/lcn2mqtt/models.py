@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field, ConfigDict
 from pypck import lcn_defs
 
 
+class OutputState(StrEnum):
+    ON = "on"
+    OFF = "off"
+
+
 class RelayState(StrEnum):
     ON = "on"
     OFF = "off"
@@ -40,8 +45,15 @@ class ModuleSerials(BaseModel):
 class Output(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
+    state: OutputState | None = None
     brightness: float | None = Field(default=None, ge=0, le=100)  # percent
     transition: int | None = Field(default=None, ge=0)  # ms
+
+    def update_state(self, state: OutputState) -> bool:
+        if self.state != state:
+            self.state = state
+            return True
+        return False
 
     def update_brightness(self, value: float) -> bool:
         if self.brightness != value:
