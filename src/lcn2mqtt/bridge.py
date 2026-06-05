@@ -95,8 +95,7 @@ class Bridge:
         )
 
     async def _subscribe_command_topics(self, mqtt: aiomqtt.Client) -> None:
-        # Wildcard subscription for all commands
-        topic = f"{self._base_topic()}/+/+/+/+/set"
+        topic = f"{self._base_topic()}/+/+/+/+/+"
         await mqtt.subscribe(topic, qos=self.config.mqtt.qos)
         _LOG.info("Subscribed to %s", topic)
 
@@ -124,12 +123,13 @@ class Bridge:
             return
         rest = topic[len(base) + 1 :]
         parts = rest.split("/")
-        # expected: <seg>/<addr>/<kind>/<index>/set
-        if len(parts) != 5 or parts[-1] != "set":
+        # expected: <seg>/<addr>/<kind>/...
+        if len(parts) < 3:
             return
-        seg_s, addr_s, kind, idx_s, _ = parts
+        seg_s, addr_s, kind = parts[0], parts[1], parts[2]
+        sub_parts = parts[3:]
         try:
-            seg, addr, idx = int(seg_s), int(addr_s[1:]), int(idx_s)
+            seg, addr = int(seg_s), int(addr_s[1:])
         except ValueError:
             return
 
@@ -138,7 +138,7 @@ class Bridge:
             if isinstance(msg.payload, (bytes, bytearray))
             else str(msg.payload).strip().lower()
         )
-        _LOG.debug("Cmd %s/%s/%s/%s = %r", seg, addr, kind, idx, payload)
+        _LOG.debug("Dispatch: %s = %r", topic, payload)
 
         lcn_addr = LcnAddr(seg, addr, False)
         if lcn_addr not in self.modules:
@@ -149,12 +149,19 @@ class Bridge:
         if module_conn is None:
             return
 
+        module = self.modules[lcn_addr]
         if kind == "output":
-            await self._output_handler.handle_command(module_conn, idx, payload)
+            await self._output_handler.handle_command(
+                module_conn, kind, sub_parts, payload, module
+            )
         elif kind == "relay":
-            await self._relay_handler.handle_command(module_conn, idx, payload)
+            await self._relay_handler.handle_command(
+                module_conn, kind, sub_parts, payload
+            )
         elif kind == "motor":
-            await self._motor_handler.handle_command(module_conn, idx, payload)
+            await self._motor_handler.handle_command(
+                module_conn, kind, sub_parts, payload
+            )
         else:
             _LOG.debug("Ignoring command kind %s", kind)
 
@@ -202,20 +209,28 @@ class Bridge:
             module = self.modules[lcn_addr]
             prefix = self._addr_prefix(lcn_addr)
 
-            if isinstance(inp, inputs.ModStatusOutput):
+            if isinstance(inp, inputs.ModSn):
+                await self._set_module_serials(module, inp)
+            elif isinstance(inp, inputs.ModStatusOutput):
                 await self._output_handler.handle_input(inp, module, prefix)
             elif isinstance(inp, inputs.ModStatusRelays):
                 await self._relay_handler.handle_input(inp, module, prefix)
-            elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
-                await self._led_handler.handle_input(inp, module, prefix)
-            elif isinstance(inp, inputs.ModStatusVar):
-                await self._variable_handler.handle_input(inp, module, prefix)
-            elif isinstance(inp, inputs.ModStatusMotorPositionBS4):
-                await self._motor_handler.handle_input(inp, module, prefix)
+            # elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
+            #     await self._led_handler.handle_input(inp, module, prefix)
+            # elif isinstance(inp, inputs.ModStatusVar):
+            #     await self._variable_handler.handle_input(inp, module, prefix)
+            # elif isinstance(inp, inputs.ModStatusMotorPositionBS4):
+            #     await self._motor_handler.handle_input(inp, module, prefix)
             else:
                 _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
             _LOG.exception("Error dispatching LCN input %s", type(inp).__name__)
+
+    async def _set_module_serials(self, module: Module, inp: inputs.ModSn) -> None:
+        module.serials.hardware = inp.hardware_serial
+        module.serials.software = inp.software_serial
+        module.serials.manu = inp.manu
+        module.serials.type = inp.hardware_type
 
     # ---------- MQTT -> LCN ----------

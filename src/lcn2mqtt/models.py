@@ -3,6 +3,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, ConfigDict
 
+from pypck import lcn_defs
+
 
 class RelayState(StrEnum):
     ON = "on"
@@ -29,10 +31,23 @@ MotorValue = Annotated[float | None, Field(ge=0, le=100)]
 
 
 class ModuleSerials(BaseModel):
-    hardware: int
-    software: int
-    manu: int
-    type: int
+    hardware: int | None = None
+    software: int | None = None
+    manu: int | None = None
+    type: lcn_defs.HardwareType | None = None
+
+
+class Output(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
+    brightness: float | None = Field(default=None, ge=0, le=100)  # percent
+    transition: int | None = Field(default=None, ge=0)  # ms
+
+    def update_brightness(self, value: float) -> bool:
+        if self.brightness != value:
+            self.brightness = value
+            return True
+        return False
 
 
 class Motor(BaseModel):
@@ -46,12 +61,12 @@ class Motor(BaseModel):
 class Module(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
-    serials: ModuleSerials | None = None
+    serials: ModuleSerials = ModuleSerials()
 
-    output1: float | None = Field(default=None, ge=0, le=100)
-    output2: float | None = Field(default=None, ge=0, le=100)
-    output3: float | None = Field(default=None, ge=0, le=100)
-    output4: float | None = Field(default=None, ge=0, le=100)
+    output1: Output = Output()
+    output2: Output = Output()
+    output3: Output = Output()
+    output4: Output = Output()
 
     relay1: RelayState | None = None
     relay2: RelayState | None = None
@@ -62,10 +77,10 @@ class Module(BaseModel):
     relay7: RelayState | None = None
     relay8: RelayState | None = None
 
-    motor1: Motor | None = None
-    motor2: Motor | None = None
-    motor3: Motor | None = None
-    motor4: Motor | None = None
+    motor1: Motor = Motor()
+    motor2: Motor = Motor()
+    motor3: Motor = Motor()
+    motor4: Motor = Motor()
 
     led1: LedState | None = None
     led2: LedState | None = None
@@ -92,15 +107,6 @@ class Module(BaseModel):
     var10: VariableValue = None
     var11: VariableValue = None
     var12: VariableValue = None
-
-    def update_output(self, output_number: int, value: float) -> bool:
-        if not hasattr(self, f"output{output_number}"):
-            raise ValueError(f"Invalid output number: {output_number}")
-        current = getattr(self, f"output{output_number}")
-        if current != value:
-            setattr(self, f"output{output_number}", value)
-            return True
-        return False
 
     def update_relays(self, states: list[RelayState]) -> list[bool]:
         if len(states) != 8:

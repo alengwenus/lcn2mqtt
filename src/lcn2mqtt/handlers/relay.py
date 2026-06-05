@@ -30,9 +30,23 @@ class RelayHandler:
             if did_change:
                 await self._publish(f"{prefix}/relay/{i}/state", states[i - 1].value)
 
-    async def handle_command(self, mc: Any, idx: int, payload: str) -> None:
+    async def handle_command(
+        self, mc: Any, kind: str, parts: list[str], payload: str
+    ) -> None:
+        if kind != "relay":
+            return
+        if len(parts) < 2:  # /<idx>/set
+            return
+        try:
+            idx = int(parts[0])
+            action = parts[1]
+        except ValueError:
+            return
         if not 1 <= idx <= 8:
             return
+        if action != "set":
+            return
+
         modifier_map = {
             "on": lcn_defs.RelayStateModifier.ON,
             "off": lcn_defs.RelayStateModifier.OFF,

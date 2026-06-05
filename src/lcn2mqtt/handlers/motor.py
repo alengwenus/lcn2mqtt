@@ -37,7 +37,15 @@ class MotorHandler:
                 json.dumps(motor.model_dump(mode="json")),
             )
 
-    async def handle_command(self, mc: Any, idx: int, payload: str) -> None:
+    async def handle_command(
+        self, mc: Any, kind: str, parts: list[str], payload: str
+    ) -> None:
+        if len(parts) < 1:
+            return
+        try:
+            idx = int(parts[0])
+        except ValueError:
+            return
         if not 1 <= idx <= 4:
             return
         modifier_map = {
