@@ -21,11 +21,13 @@ class OutputHandler:
     """Handles status updates and commands for LCN dimmer output ports."""
 
     def __init__(self, publish: Publish) -> None:
+        """Initialize the handler with a publish function."""
         self._publish = publish
 
     async def handle_input(
         self, inp: inputs.ModStatusOutput, module: Module, prefix: str
     ) -> None:
+        """Handle an output status input, update the module state, and publish any changes."""
         idx = inp.output_id + 1  # 0-based -> 1-based
         output = getattr(module, f"output{idx}")
 
@@ -46,6 +48,7 @@ class OutputHandler:
     async def handle_command(
         self, mc: Any, handler: str, parts: list[str], payload: str, module: Module
     ) -> None:
+        """Handle a command to change an output state or brightness."""
         if handler != "output":
             return
         # /<idx>/set

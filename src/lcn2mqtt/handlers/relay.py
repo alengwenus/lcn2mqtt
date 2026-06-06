@@ -24,6 +24,7 @@ class RelayHandler:
     async def handle_input(
         self, inp: inputs.ModStatusRelays, module: Module, prefix: str
     ) -> None:
+        """Handle a relay status input, update the module state, and publish any changes."""
         states = [RelayState.ON if s else RelayState.OFF for s in inp.states]
         changed = module.update_relays(states)
         for i, did_change in enumerate(changed, start=1):
@@ -33,6 +34,7 @@ class RelayHandler:
     async def handle_command(
         self, mc: Any, handler: str, parts: list[str], payload: str
     ) -> None:
+        """Handle a command to change a relay state."""
         if handler != "relay":
             return
         if len(parts) < 2:  # /<idx>/set

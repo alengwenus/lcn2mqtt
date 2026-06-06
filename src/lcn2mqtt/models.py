@@ -1,3 +1,5 @@
+"""Data models for LCN modules."""
+
 from typing import Annotated
 from enum import StrEnum
 
@@ -7,16 +9,22 @@ from pypck import lcn_defs
 
 
 class OutputState(StrEnum):
+    """State for module outputs."""
+
     ON = "on"
     OFF = "off"
 
 
 class RelayState(StrEnum):
+    """State for module relays."""
+
     ON = "on"
     OFF = "off"
 
 
 class LedState(StrEnum):
+    """State for module LEDs."""
+
     ON = "on"
     OFF = "off"
     BLINK = "blink"
@@ -24,6 +32,8 @@ class LedState(StrEnum):
 
 
 class MotorState(StrEnum):
+    """State for module motors."""
+
     OPEN = "open"
     CLOSED = "closed"
     OPENING = "opening"
@@ -36,6 +46,8 @@ MotorValue = Annotated[float | None, Field(ge=0, le=100)]
 
 
 class ModuleSerials(BaseModel):
+    """Serial numbers and type information for a module."""
+
     hardware: int | None = None
     software: int | None = None
     manu: int | None = None
@@ -43,6 +55,8 @@ class ModuleSerials(BaseModel):
 
 
 class Output(BaseModel):
+    """Output model for dimmable outputs."""
+
     model_config = ConfigDict(validate_assignment=True)
 
     state: OutputState | None = None
@@ -50,12 +64,14 @@ class Output(BaseModel):
     transition: int | None = Field(default=None, ge=0)  # ms
 
     def update_state(self, state: OutputState) -> bool:
+        """Update the output state and return True if it changed."""
         if self.state != state:
             self.state = state
             return True
         return False
 
     def update_brightness(self, value: float) -> bool:
+        """Update the output brightness and return True if it changed."""
         if self.brightness != value:
             self.brightness = value
             return True
@@ -63,6 +79,8 @@ class Output(BaseModel):
 
 
 class Motor(BaseModel):
+    """Motor model for module motors."""
+
     model_config = ConfigDict(validate_assignment=True)
 
     state: MotorState | None = None
@@ -71,6 +89,8 @@ class Motor(BaseModel):
 
 
 class Module(BaseModel):
+    """Model for an LCN module."""
+
     model_config = ConfigDict(validate_assignment=True)
 
     serials: ModuleSerials = ModuleSerials()
@@ -121,6 +141,7 @@ class Module(BaseModel):
     var12: VariableValue = None
 
     def update_relays(self, states: list[RelayState]) -> list[bool]:
+        """Update the relay states and return a list of which ones changed."""
         if len(states) != 8:
             raise ValueError(f"Invalid number of relay states: {len(states)}")
         changed = [False] * 8
@@ -131,6 +152,7 @@ class Module(BaseModel):
         return changed
 
     def update_motors(self, motors: list[Motor]) -> list[bool]:
+        """Update the motor states and return a list of which ones changed."""
         if len(motors) != 4:
             raise ValueError(f"Invalid number of motors: {len(motors)}")
         changed = [False] * 4
@@ -141,6 +163,7 @@ class Module(BaseModel):
         return changed
 
     def update_leds(self, states: list[LedState]) -> list[bool]:
+        """Update the LED states and return a list of which ones changed."""
         if len(states) != 12:
             raise ValueError(f"Invalid number of LED states: {len(states)}")
         changed = [False] * 12
@@ -151,6 +174,7 @@ class Module(BaseModel):
         return changed
 
     def update_variable(self, variable_number: int, value: int) -> bool:
+        """Update a variable and return True if it changed."""
         if not hasattr(self, f"var{variable_number}"):
             raise ValueError(f"Invalid variable number: {variable_number}")
         if getattr(self, f"var{variable_number}") != value:

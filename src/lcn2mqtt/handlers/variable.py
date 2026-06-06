@@ -31,6 +31,7 @@ _VAR_INDEX_MAP = {
 
 
 def _var_index(var: Any) -> int | None:
+    """Convert an LCN variable identifier to a 1-based index, or return None if it can't be determined."""
     name = getattr(var, "name", "")
     if not isinstance(name, str):
         return None
@@ -49,11 +50,13 @@ class VariableHandler:
     """Handles status updates for LCN variables."""
 
     def __init__(self, publish: Publish) -> None:
+        """Initialize the handler with a publish function."""
         self._publish = publish
 
     async def handle_input(
         self, inp: inputs.ModStatusVar, module: Module, prefix: str
     ) -> None:
+        """Handle a variable status input, update the module state, and publish any changes."""
         idx = _var_index(inp.orig_var)
         if idx is None:
             return

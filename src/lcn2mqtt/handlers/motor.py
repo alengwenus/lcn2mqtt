@@ -25,6 +25,7 @@ class MotorHandler:
     async def handle_input(
         self, inp: inputs.ModStatusMotorPositionBS4, module: Module, prefix: str
     ) -> None:
+        """Handle a motor position status input, update the module state, and publish any changes."""
         idx = inp.motor + 1  # 0-based -> 1-based
         motor = getattr(module, f"motor{idx}") or Motor()
         motor = motor.model_copy(update={"position": float(inp.position)})
@@ -40,6 +41,7 @@ class MotorHandler:
     async def handle_command(
         self, mc: Any, handler: str, parts: list[str], payload: str
     ) -> None:
+        """Handle a command to change a motor state."""
         if handler != "motor":
             return
         if len(parts) < 1:

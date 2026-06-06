@@ -15,6 +15,8 @@ _LOG = logging.getLogger(__name__)
 
 
 class LcnConfig(BaseSettings):
+    """LCN-PCHK connection and module configuration."""
+
     model_config = SettingsConfigDict(
         env_prefix="LCN_",
         case_sensitive=False,
@@ -78,10 +80,13 @@ class LcnConfig(BaseSettings):
 
     @property
     def module_overrides(self) -> dict[tuple[int, int, bool], dict[str, Any]]:
+        """Get the parsed module attribute overrides."""
         return self._module_overrides
 
 
 class MqttConfig(BaseSettings):
+    """MQTT connection and topic configuration."""
+
     model_config = SettingsConfigDict(
         env_prefix="MQTT_",
         case_sensitive=False,
@@ -99,6 +104,8 @@ class MqttConfig(BaseSettings):
 
 
 class AppConfig(BaseSettings):
+    """Main application configuration, including LCN and MQTT settings."""
+
     model_config = SettingsConfigDict(
         case_sensitive=False,
         env_file=".env",
@@ -113,8 +120,10 @@ class AppConfig(BaseSettings):
     @field_validator("log_level", mode="before")
     @classmethod
     def _upper(cls, v: str) -> str:
+        """Convert log level to uppercase."""
         return v.upper()
 
 
 def load_config() -> AppConfig:
+    """Load the application configuration from environment variables and .env file."""
     return AppConfig()

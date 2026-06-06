@@ -16,6 +16,7 @@ Publish = Callable[[str, Any], Awaitable[None]]
 
 
 def _led_state(state: Any) -> LedState:
+    """Convert an LCN LED state to a LedState enum."""
     name = getattr(state, "name", str(state)).lower()
     mapping = {
         "on": LedState.ON,
@@ -42,6 +43,7 @@ class LedHandler:
                 await self._publish(f"{prefix}/led/{i}/state", states[i - 1].value)
 
     async def handle_command(self, mc: Any, idx: int, payload: str) -> None:
+        """Handle a command to change an LED state."""
         if not 1 <= idx <= 12:
             return
         status_map = {

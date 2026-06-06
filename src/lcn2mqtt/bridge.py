@@ -29,6 +29,8 @@ LWT_PAYLOAD_OFFLINE = "offline"
 
 
 class Bridge:
+    """LCN <-> MQTT bridge."""
+
     def __init__(self, config: AppConfig) -> None:
         self.config = config
         self.modules: dict[LcnAddr, Module] = {}
@@ -45,18 +47,22 @@ class Bridge:
     # ---------- topic helpers ----------
 
     def _base_topic(self) -> str:
+        """Base MQTT topic for this bridge."""
         return f"{self.config.mqtt.base_topic}"
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
+        """MQTT topic prefix for the given LCN address."""
         kind = "g" if lcn_addr.is_group else "m"
         return f"{self._base_topic()}/{kind}{lcn_addr.seg_id:03d}{lcn_addr.addr_id:03d}"
 
     def _bridge_status_topic(self) -> str:
+        """MQTT topic for the bridge status."""
         return f"{self._base_topic()}/bridge/status"
 
     # ---------- run ----------
 
     async def run(self) -> None:
+        """Run the bridge."""
         async with AsyncExitStack() as stack:
             mqtt = await stack.enter_async_context(self._mqtt_client())
             self._mqtt = mqtt
@@ -77,6 +83,7 @@ class Bridge:
     # ---------- MQTT ----------
 
     def _mqtt_client(self) -> aiomqtt.Client:
+        """Create an MQTT client with the appropriate settings."""
         cfg = self.config.mqtt
         will = aiomqtt.Will(
             topic=self._bridge_status_topic(),
@@ -94,11 +101,13 @@ class Bridge:
         )
 
     async def _subscribe_command_topics(self, mqtt: aiomqtt.Client) -> None:
+        """Subscribe to MQTT command topics."""
         topic = f"{self._base_topic()}/+/#"
         await mqtt.subscribe(topic, qos=self.config.mqtt.qos)
         _LOG.info("Subscribed to %s", topic)
 
     async def _publish(self, topic: str, payload: Any) -> None:
+        """Publish a message to an MQTT topic."""
         if self._mqtt is None:
             return
         await self._mqtt.publish(
@@ -110,6 +119,7 @@ class Bridge:
         _LOG.debug("Dispatched: %s = %r", topic, payload)
 
     async def _mqtt_message_loop(self, mqtt: aiomqtt.Client) -> None:
+        """Loop to handle incoming MQTT messages."""
         async for msg in mqtt.messages:
             try:
                 await self._handle_mqtt_message(msg)
@@ -117,6 +127,7 @@ class Bridge:
                 _LOG.exception("Failed to handle MQTT message %s", msg.topic)
 
     async def _handle_mqtt_message(self, msg: aiomqtt.Message) -> None:
+        """Handle an incoming MQTT message."""
         topic = str(msg.topic)
         base = self._base_topic()
         if not topic.startswith(base + "/"):
@@ -170,6 +181,7 @@ class Bridge:
     # ---------- LCN ----------
 
     async def _connect_lcn(self) -> PchkConnectionManager:
+        """Connect to the LCN-PCHK and set up input handling."""
         cfg = self.config.lcn
         settings = {
             "ACKNOWLEDGE": cfg.acknowledge_commands,
@@ -185,6 +197,7 @@ class Bridge:
         return pchk
 
     def _get_module_connection(self, seg: int, addr: int):
+        """Get the module connection for the given segment and address."""
         if self._pchk is None:
             return None
         lcn_addr = LcnAddr(seg, addr, False)
@@ -229,10 +242,12 @@ class Bridge:
     # ---------- LCN -> MQTT ----------
 
     def _on_lcn_input(self, inp: inputs.Input) -> None:
+        """Callback for incoming LCN inputs; schedules async dispatch."""
         # Schedule async dispatch; pypck calls this from the event loop.
         asyncio.create_task(self._dispatch_input(inp))
 
     async def _dispatch_input(self, inp: inputs.Input) -> None:
+        """Dispatch an incoming LCN input to the appropriate handler and MQTT topic."""
         try:
             lcn_addr: LcnAddr | None = getattr(inp, "physical_source_addr", None)
             if lcn_addr is None:
@@ -266,6 +281,7 @@ class Bridge:
             _LOG.exception("Error dispatching LCN input %s", type(inp).__name__)
 
     async def _set_module_serials(self, module: Module, inp: inputs.ModSn) -> None:
+        """Set the serial numbers and type for a module based on a ModSn input."""
         module.serials.hardware = inp.hardware_serial
         module.serials.software = inp.software_serial
         module.serials.manu = inp.manu

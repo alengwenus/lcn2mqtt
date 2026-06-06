@@ -14,6 +14,7 @@ from .config import load_config
 
 
 def _setup_logging(level: str) -> None:
+    """Configure logging with the specified log level."""
     root = logging.getLogger()
     root.setLevel(level)
     if not root.handlers:
@@ -25,6 +26,7 @@ def _setup_logging(level: str) -> None:
 
 
 async def _amain() -> None:
+    """Main async entry point for the bridge."""
     _log_level = (
         os.environ.get("LOG_LEVEL") or dotenv_values(".env").get("LOG_LEVEL", "INFO")
     ).upper()
@@ -62,6 +64,7 @@ async def _amain() -> None:
 
 
 def main() -> None:
+    """Main entry point for the application."""
     try:
         asyncio.run(_amain())
     except KeyboardInterrupt:
