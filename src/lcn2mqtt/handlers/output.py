@@ -31,8 +31,6 @@ class OutputHandler:
         idx = inp.output_id + 1  # 0-based -> 1-based
         output = getattr(module, f"output{idx}")
 
-        print(inp.percent)
-
         state_changed = output.update_state(
             OutputState.ON if inp.percent > 0 else OutputState.OFF
         )

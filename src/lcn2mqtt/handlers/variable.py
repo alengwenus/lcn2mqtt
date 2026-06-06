@@ -6,7 +6,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from pypck import inputs
+from pypck import inputs, lcn_defs
 
 from ..models import Module
 
@@ -57,9 +57,15 @@ class VariableHandler:
         self, inp: inputs.ModStatusVar, module: Module, prefix: str
     ) -> None:
         """Handle a variable status input, update the module state, and publish any changes."""
-        idx = _var_index(inp.orig_var)
-        if idx is None:
+        # idx = _var_index(inp.orig_var)
+        if inp.var == lcn_defs.Var.UNKNOWN:
             return
-        value = int(inp.value.to_native())
-        if module.update_variable(idx, value):
-            await self._publish(f"{prefix}/var/{idx}/state", value)
+        idx = inp.var.value + 1
+        variable = getattr(module, f"variable{idx}", None)
+        if variable is None:
+            _LOG.warning("Received variable input for invalid variable index %d", idx)
+            return
+        unit = variable.unit
+        value_unit = inp.value.to_var_unit(unit)
+        if variable.update_value(int(inp.value.to_native())):
+            await self._publish(f"{prefix}/variable/{idx}/state", value_unit)

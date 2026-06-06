@@ -169,12 +169,17 @@ class Bridge:
             )
         elif handler == "relay":
             await self._relay_handler.handle_command(
-                module_conn, handler, sub_parts, payload
+                module_conn,
+                handler,
+                sub_parts,
+                payload,
             )
         elif handler == "motor_relays":
             await self._motor_relay_handler.handle_command(
                 module_conn, handler, sub_parts, payload
             )
+        elif handler in ["variable"]:
+            pass
         else:
             _LOG.debug("Ignoring command handler %s", handler)
 
@@ -271,8 +276,8 @@ class Bridge:
                 await self._motor_relay_handler.handle_input(inp, module, prefix)
             # elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
             #     await self._led_handler.handle_input(inp, module, prefix)
-            # elif isinstance(inp, inputs.ModStatusVar):
-            #     await self._variable_handler.handle_input(inp, module, prefix)
+            elif isinstance(inp, inputs.ModStatusVar):
+                await self._variable_handler.handle_input(inp, module, prefix)
             else:
                 _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 

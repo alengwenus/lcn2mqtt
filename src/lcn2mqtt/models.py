@@ -3,7 +3,7 @@
 from typing import Annotated
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from pypck import lcn_defs
 
@@ -78,6 +78,32 @@ class Output(BaseModel):
         return False
 
 
+class Variable(BaseModel):
+    """Variable model for module variables."""
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    value: VariableValue = None  # native unit
+    unit: lcn_defs.VarUnit = lcn_defs.VarUnit.NATIVE  # units for the variable
+
+    @field_validator("unit", mode="before")
+    @classmethod
+    def _validate_unit(cls, v: str) -> lcn_defs.VarUnit:
+        """Validate the variable unit."""
+        try:
+            unit = lcn_defs.VarUnit.parse(v.upper())
+        except ValueError:
+            raise ValueError(f"Invalid variable unit: {v}")
+        return unit
+
+    def update_value(self, value: int) -> bool:
+        """Update a variable and return True if it changed."""
+        if self.value != value:
+            self.value = value
+            return True
+        return False
+
+
 class Motor(BaseModel):
     """Motor model for module motors."""
 
@@ -127,18 +153,18 @@ class Module(BaseModel):
     led11: LedState | None = None
     led12: LedState | None = None
 
-    var1: VariableValue = None
-    var2: VariableValue = None
-    var3: VariableValue = None
-    var4: VariableValue = None
-    var5: VariableValue = None
-    var6: VariableValue = None
-    var7: VariableValue = None
-    var8: VariableValue = None
-    var9: VariableValue = None
-    var10: VariableValue = None
-    var11: VariableValue = None
-    var12: VariableValue = None
+    variable1: Variable = Variable()
+    variable2: Variable = Variable()
+    variable3: Variable = Variable()
+    variable4: Variable = Variable()
+    variable5: Variable = Variable()
+    variable6: Variable = Variable()
+    variable7: Variable = Variable()
+    variable8: Variable = Variable()
+    variable9: Variable = Variable()
+    variable10: Variable = Variable()
+    variable11: Variable = Variable()
+    variable12: Variable = Variable()
 
     def update_relays(self, states: list[RelayState]) -> list[bool]:
         """Update the relay states and return a list of which ones changed."""
@@ -173,12 +199,3 @@ class Module(BaseModel):
                 setattr(self, f"led{i}", states[i - 1])
                 changed[i - 1] = True
         return changed
-
-    def update_variable(self, variable_number: int, value: int) -> bool:
-        """Update a variable and return True if it changed."""
-        if not hasattr(self, f"var{variable_number}"):
-            raise ValueError(f"Invalid variable number: {variable_number}")
-        if getattr(self, f"var{variable_number}") != value:
-            setattr(self, f"var{variable_number}", value)
-            return True
-        return False
