@@ -229,6 +229,22 @@ class MqttConfig(BaseSettings):
         )
 
 
+class DiscoveryConfig(BaseSettings):
+    """Home Assistant MQTT Discovery configuration."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="DISCOVERY_",
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    enabled: bool = False
+    prefix: str = "homeassistant"
+    scan_modules: bool = True
+
+
 class AppConfig(BaseSettings):
     """Main application configuration, including LCN and MQTT settings."""
 
@@ -244,6 +260,7 @@ class AppConfig(BaseSettings):
     lcn: LcnConfig = LcnConfig()
     mqtt: MqttConfig = MqttConfig()
     devices: DevicesConfig = DevicesConfig()
+    discovery: DiscoveryConfig = DiscoveryConfig()
 
     @classmethod
     def settings_customise_sources(

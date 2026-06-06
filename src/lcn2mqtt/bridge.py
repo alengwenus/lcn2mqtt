@@ -13,6 +13,7 @@ from pypck.connection import PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
 
 from .config import AppConfig
+from .discovery import DiscoveryPublisher
 from .handlers import (
     LedHandler,
     MotorRelayHandler,
@@ -96,8 +97,16 @@ class Bridge:
                 retain=True,
             )
 
+            discovery: DiscoveryPublisher | None = None
+            if self.config.discovery.enabled:
+                discovery = DiscoveryPublisher(self.config, mqtt)
+                await discovery.publish_bridge()
+
             self._pchk = await self._connect_lcn()
             stack.push_async_callback(self._pchk.async_close)
+
+            if discovery is not None:
+                await discovery.publish_modules(self._pchk)
 
             await self._subscribe_command_topics(mqtt)
 
