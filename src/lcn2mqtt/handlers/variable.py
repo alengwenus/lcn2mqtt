@@ -57,8 +57,7 @@ class VariableHandler:
         self, inp: inputs.ModStatusVar, module: Module, prefix: str
     ) -> None:
         """Handle a variable status input, update the module state, and publish any changes."""
-        # idx = _var_index(inp.orig_var)
-        if inp.var == lcn_defs.Var.UNKNOWN:
+        if inp.var not in lcn_defs.Var.variables_new() + lcn_defs.Var.variables_old():
             return
         idx = inp.var.value + 1
         variable = getattr(module, f"variable{idx}", None)
@@ -69,3 +68,38 @@ class VariableHandler:
         value_unit = inp.value.to_var_unit(unit)
         if variable.update_value(int(inp.value.to_native())):
             await self._publish(f"{prefix}/variable/{idx}/state", value_unit)
+
+    async def handle_command(
+        self, mc: Any, handler: str, parts: list[str], payload: str, module: Module
+    ) -> None:
+        """Handle a command to change a variable value."""
+        if handler != "variable":
+            return
+        if len(parts) < 2:  # /<idx>/set
+            return
+        try:
+            idx = int(parts[0])
+            action = parts[1]
+            variable = lcn_defs.Var(idx - 1)
+        except ValueError:
+            return
+
+        serial = mc.serials.software_serial
+        if serial < 0x170206:
+            variables = lcn_defs.Var.variables_old()
+        else:
+            variables = lcn_defs.Var.variables_new()
+        if variable not in variables:
+            _LOG.warning("Received command for invalid variable index %d", idx)
+            return
+
+        if action == "set":
+            try:
+                value = float(payload)
+            except ValueError:
+                _LOG.warning("Invalid variable payload %r", payload)
+                return
+
+            unit = getattr(module, f"variable{idx}").unit
+
+            await mc.var_abs(variable, value, unit, serial)

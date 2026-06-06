@@ -126,63 +126,6 @@ class Bridge:
             except Exception:  # noqa: BLE001
                 _LOG.exception("Failed to handle MQTT message %s", msg.topic)
 
-    async def _handle_mqtt_message(self, msg: aiomqtt.Message) -> None:
-        """Handle an incoming MQTT message."""
-        topic = str(msg.topic)
-        base = self._base_topic()
-        if not topic.startswith(base + "/"):
-            return
-        rest = topic[len(base) + 1 :]
-        parts = rest.split("/")
-        # expected: <addr>/<handler>/...
-        if len(parts) < 2:
-            return
-        addr_s, handler = parts[0], parts[1]
-        sub_parts = parts[2:]
-        try:
-            seg = int(addr_s[1:4])
-            addr = int(addr_s[4:])  # skip m/g
-            is_group = addr_s[0] == "g"  # noqa: F841
-        except ValueError:
-            return
-
-        payload = (
-            msg.payload.decode("utf-8", errors="replace").strip().lower()
-            if isinstance(msg.payload, (bytes, bytearray))
-            else str(msg.payload).strip().lower()
-        )
-        # _LOG.debug("Received: %s = %r", topic, payload)
-
-        lcn_addr = LcnAddr(seg, addr, False)
-        if lcn_addr not in self.modules:
-            _LOG.info("Auto-registering new LCN module %s.%s via command", seg, addr)
-            self.modules[lcn_addr] = self._create_module(lcn_addr)
-
-        module_conn = self._get_module_connection(seg, addr)
-        if module_conn is None:
-            return
-
-        module = self.modules[lcn_addr]
-        if handler == "output":
-            await self._output_handler.handle_command(
-                module_conn, handler, sub_parts, payload, module
-            )
-        elif handler == "relay":
-            await self._relay_handler.handle_command(
-                module_conn,
-                handler,
-                sub_parts,
-                payload,
-            )
-        elif handler == "motor_relays":
-            await self._motor_relay_handler.handle_command(
-                module_conn, handler, sub_parts, payload
-            )
-        elif handler in ["variable"]:
-            pass
-        else:
-            _LOG.debug("Ignoring command handler %s", handler)
-
     # ---------- LCN ----------
 
     async def _connect_lcn(self) -> PchkConnectionManager:
@@ -201,12 +144,21 @@ class Bridge:
         _LOG.info("Connected to LCN-PCHK at %s:%s", cfg.host, cfg.port)
         return pchk
 
-    def _get_module_connection(self, seg: int, addr: int):
+    async def _get_module_connection(self, seg: int, addr: int):
         """Get the module connection for the given segment and address."""
         if self._pchk is None:
             return None
         lcn_addr = LcnAddr(seg, addr, False)
-        return self._pchk.get_device_connection(lcn_addr)
+        module_conn = self._pchk.get_device_connection(lcn_addr)
+
+        await module_conn.serials_known()
+        if module_conn.serials.hardware_serial == -1:
+            _LOG.warning(
+                "Timeout waiting for serials of module %s.%s; several commands may not work",
+                seg,
+                addr,
+            )
+        return module_conn
 
     @staticmethod
     def _set_nested_attr(obj: object, parts: list[str], value: str) -> None:
@@ -264,6 +216,13 @@ class Bridge:
                     lcn_addr.addr_id,
                 )
                 self.modules[lcn_addr] = self._create_module(lcn_addr)
+
+            module_conn = await self._get_module_connection(
+                lcn_addr.seg_id, lcn_addr.addr_id
+            )
+            if module_conn is None:
+                return
+
             module = self.modules[lcn_addr]
             prefix = self._addr_prefix(lcn_addr)
 
@@ -292,3 +251,62 @@ class Bridge:
         module.serials.type = inp.hardware_type
 
     # ---------- MQTT -> LCN ----------
+
+    async def _handle_mqtt_message(self, msg: aiomqtt.Message) -> None:
+        """Handle an incoming MQTT message."""
+        topic = str(msg.topic)
+        base = self._base_topic()
+        if not topic.startswith(base + "/"):
+            return
+        rest = topic[len(base) + 1 :]
+        parts = rest.split("/")
+        # expected: <addr>/<handler>/...
+        if len(parts) < 2:
+            return
+        addr_s, handler = parts[0], parts[1]
+        sub_parts = parts[2:]
+        try:
+            seg = int(addr_s[1:4])
+            addr = int(addr_s[4:])  # skip m/g
+            is_group = addr_s[0] == "g"  # noqa: F841
+        except ValueError:
+            return
+
+        payload = (
+            msg.payload.decode("utf-8", errors="replace").strip().lower()
+            if isinstance(msg.payload, (bytes, bytearray))
+            else str(msg.payload).strip().lower()
+        )
+        # _LOG.debug("Received: %s = %r", topic, payload)
+
+        lcn_addr = LcnAddr(seg, addr, False)
+        if lcn_addr not in self.modules:
+            _LOG.info("Auto-registering new LCN module %s.%s via command", seg, addr)
+            self.modules[lcn_addr] = self._create_module(lcn_addr)
+
+        module_conn = await self._get_module_connection(seg, addr)
+        if module_conn is None:
+            return
+
+        module = self.modules[lcn_addr]
+        if handler == "output":
+            await self._output_handler.handle_command(
+                module_conn, handler, sub_parts, payload, module
+            )
+        elif handler == "relay":
+            await self._relay_handler.handle_command(
+                module_conn,
+                handler,
+                sub_parts,
+                payload,
+            )
+        elif handler == "motor_relays":
+            await self._motor_relay_handler.handle_command(
+                module_conn, handler, sub_parts, payload
+            )
+        elif handler in ["variable"]:
+            await self._variable_handler.handle_command(
+                module_conn, handler, sub_parts, payload, module
+            )
+        else:
+            _LOG.debug("Ignoring command handler %s", handler)

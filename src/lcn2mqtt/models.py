@@ -48,10 +48,10 @@ MotorValue = Annotated[float | None, Field(ge=0, le=100)]
 class ModuleSerials(BaseModel):
     """Serial numbers and type information for a module."""
 
-    hardware: int | None = None
-    software: int | None = None
-    manu: int | None = None
-    type: lcn_defs.HardwareType | None = None
+    hardware: int = -1
+    software: int = -1
+    manu: int = -1
+    type: lcn_defs.HardwareType = lcn_defs.HardwareType.UNKNOWN
 
 
 class Output(BaseModel):
