@@ -166,6 +166,27 @@ class Module(BaseModel):
     variable11: Variable = Variable()
     variable12: Variable = Variable()
 
+    setpoint1: Variable = Variable()
+    setpoint2: Variable = Variable()
+
+    threshold1_1: Variable = Variable()
+    threshold1_2: Variable = Variable()
+    threshold1_3: Variable = Variable()
+    threshold1_4: Variable = Variable()
+    threshold1_5: Variable = Variable()
+    threshold2_1: Variable = Variable()
+    threshold2_2: Variable = Variable()
+    threshold2_3: Variable = Variable()
+    threshold2_4: Variable = Variable()
+    threshold3_1: Variable = Variable()
+    threshold3_2: Variable = Variable()
+    threshold3_3: Variable = Variable()
+    threshold3_4: Variable = Variable()
+    threshold4_1: Variable = Variable()
+    threshold4_2: Variable = Variable()
+    threshold4_3: Variable = Variable()
+    threshold4_4: Variable = Variable()
+
     def update_relays(self, states: list[RelayState]) -> list[bool]:
         """Update the relay states and return a list of which ones changed."""
         if len(states) != 8:

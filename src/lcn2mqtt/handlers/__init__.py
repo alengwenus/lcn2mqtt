@@ -4,7 +4,7 @@ from .led import LedHandler
 from .motor import MotorRelayHandler
 from .output import OutputHandler
 from .relay import RelayHandler
-from .variable import VariableHandler
+from .variable import VariableHandler, SetpointHandler, ThresholdHandler
 
 __all__ = [
     "LedHandler",
@@ -12,4 +12,6 @@ __all__ = [
     "OutputHandler",
     "RelayHandler",
     "VariableHandler",
+    "SetpointHandler",
+    "ThresholdHandler",
 ]

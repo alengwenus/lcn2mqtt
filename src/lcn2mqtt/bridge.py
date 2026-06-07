@@ -19,6 +19,8 @@ from .handlers import (
     OutputHandler,
     RelayHandler,
     VariableHandler,
+    SetpointHandler,
+    ThresholdHandler,
 )
 from .models import Module
 
@@ -43,6 +45,8 @@ class Bridge:
         self._motor_relay_handler = MotorRelayHandler(self._publish)
         self._led_handler = LedHandler(self._publish)
         self._variable_handler = VariableHandler(self._publish)
+        self._setpoint_handler = SetpointHandler(self._publish)
+        self._threshold_handler = ThresholdHandler(self._publish)
 
     # ---------- topic helpers ----------
 
@@ -256,6 +260,8 @@ class Bridge:
             #     await self._led_handler.handle_input(inp, module, prefix)
             elif isinstance(inp, inputs.ModStatusVar):
                 await self._variable_handler.handle_input(inp, module, prefix)
+                await self._setpoint_handler.handle_input(inp, module, prefix)
+                await self._threshold_handler.handle_input(inp, module, prefix)
             else:
                 _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
@@ -325,8 +331,16 @@ class Bridge:
             await self._motor_relay_handler.handle_command(
                 device_connection, handler, sub_parts, payload
             )
-        elif handler in ["variable"]:
+        elif handler == "variable":
             await self._variable_handler.handle_command(
+                device_connection, handler, sub_parts, payload, module
+            )
+        elif handler == "setpoint":
+            await self._setpoint_handler.handle_command(
+                device_connection, handler, sub_parts, payload, module
+            )
+        elif handler == "threshold":
+            await self._threshold_handler.handle_command(
                 device_connection, handler, sub_parts, payload, module
             )
         else:
