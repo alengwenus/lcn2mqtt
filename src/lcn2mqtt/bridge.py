@@ -52,8 +52,27 @@ class Bridge:
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
         """MQTT topic prefix for the given LCN address."""
-        kind = "g" if lcn_addr.is_group else "m"
-        return f"{self._base_topic()}/{kind}{lcn_addr.seg_id:03d}{lcn_addr.addr_id:03d}"
+        target_type = "group" if lcn_addr.is_group else "module"
+        return (
+            f"{self._base_topic()}/{target_type}/{lcn_addr.seg_id}/{lcn_addr.addr_id}"
+        )
+
+    def _parse_addr_from_topic(self, topic: str) -> LcnAddr:
+        """Parse the segment, address, and group flag from an MQTT topic, or return None if it can't be parsed."""
+        base = self._base_topic()
+        if not topic.startswith(base + "/"):
+            raise ValueError("Topic does not start with base topic")
+
+        parts = topic.lower().split("/")
+
+        # expected topic format: <base>/<m|g>/<seg>/<addr>/<handler>/<subtopics...>
+        try:
+            is_group = parts[1] == "group"
+            seg = int(parts[2])
+            addr = int(parts[3])
+        except (IndexError, ValueError):
+            raise ValueError("Topic does not match expected format")
+        return LcnAddr(seg, addr, is_group)
 
     def _bridge_status_topic(self) -> str:
         """MQTT topic for the bridge status."""
@@ -102,7 +121,7 @@ class Bridge:
 
     async def _subscribe_command_topics(self, mqtt: aiomqtt.Client) -> None:
         """Subscribe to MQTT command topics."""
-        topic = f"{self._base_topic()}/+/#"
+        topic = f"{self._base_topic()}/#"
         await mqtt.subscribe(topic, qos=self.config.mqtt.qos)
         _LOG.info("Subscribed to %s", topic)
 
@@ -144,21 +163,21 @@ class Bridge:
         _LOG.info("Connected to LCN-PCHK at %s:%s", cfg.host, cfg.port)
         return pchk
 
-    async def _get_module_connection(self, seg: int, addr: int):
+    async def _get_device_connection(self, seg: int, addr: int):
         """Get the module connection for the given segment and address."""
         if self._pchk is None:
             return None
         lcn_addr = LcnAddr(seg, addr, False)
-        module_conn = self._pchk.get_device_connection(lcn_addr)
+        device_connection = self._pchk.get_device_connection(lcn_addr)
 
-        await module_conn.serials_known()
-        if module_conn.serials.hardware_serial == -1:
+        await device_connection.serials_known()
+        if device_connection.serials.hardware_serial == -1:
             _LOG.warning(
                 "Timeout waiting for serials of module %s.%s; several commands may not work",
                 seg,
                 addr,
             )
-        return module_conn
+        return device_connection
 
     @staticmethod
     def _set_nested_attr(obj: object, parts: list[str], value: str) -> None:
@@ -217,10 +236,10 @@ class Bridge:
                 )
                 self.modules[lcn_addr] = self._create_module(lcn_addr)
 
-            module_conn = await self._get_module_connection(
+            device_connection = await self._get_device_connection(
                 lcn_addr.seg_id, lcn_addr.addr_id
             )
-            if module_conn is None:
+            if device_connection is None:
                 return
 
             module = self.modules[lcn_addr]
@@ -258,18 +277,15 @@ class Bridge:
         base = self._base_topic()
         if not topic.startswith(base + "/"):
             return
-        rest = topic[len(base) + 1 :]
-        parts = rest.split("/")
-        # expected: <addr>/<handler>/...
-        if len(parts) < 2:
-            return
-        addr_s, handler = parts[0], parts[1]
-        sub_parts = parts[2:]
+
         try:
-            seg = int(addr_s[1:4])
-            addr = int(addr_s[4:])  # skip m/g
-            is_group = addr_s[0] == "g"  # noqa: F841
-        except ValueError:
+            # expected topic format: <base>/<m|g>/<seg>/<addr>/<handler>/<subtopics...>
+            lcn_addr = self._parse_addr_from_topic(topic)
+            parts = topic.lower().split("/")
+            handler = parts[4]
+            sub_parts = parts[5:]
+        except Exception:  # noqa: BLE001
+            _LOG.warning("Received MQTT message with invalid topic format: %s", topic)
             return
 
         payload = (
@@ -279,34 +295,39 @@ class Bridge:
         )
         # _LOG.debug("Received: %s = %r", topic, payload)
 
-        lcn_addr = LcnAddr(seg, addr, False)
         if lcn_addr not in self.modules:
-            _LOG.info("Auto-registering new LCN module %s.%s via command", seg, addr)
+            _LOG.info(
+                "Auto-registering new LCN module %s.%s via command",
+                lcn_addr.seg_id,
+                lcn_addr.addr_id,
+            )
             self.modules[lcn_addr] = self._create_module(lcn_addr)
 
-        module_conn = await self._get_module_connection(seg, addr)
-        if module_conn is None:
+        device_connection = await self._get_device_connection(
+            lcn_addr.seg_id, lcn_addr.addr_id
+        )
+        if device_connection is None:
             return
 
         module = self.modules[lcn_addr]
         if handler == "output":
             await self._output_handler.handle_command(
-                module_conn, handler, sub_parts, payload, module
+                device_connection, handler, sub_parts, payload, module
             )
         elif handler == "relay":
             await self._relay_handler.handle_command(
-                module_conn,
+                device_connection,
                 handler,
                 sub_parts,
                 payload,
             )
         elif handler == "motor_relays":
             await self._motor_relay_handler.handle_command(
-                module_conn, handler, sub_parts, payload
+                device_connection, handler, sub_parts, payload
             )
         elif handler in ["variable"]:
             await self._variable_handler.handle_command(
-                module_conn, handler, sub_parts, payload, module
+                device_connection, handler, sub_parts, payload, module
             )
         else:
             _LOG.debug("Ignoring command handler %s", handler)

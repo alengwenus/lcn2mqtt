@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pypck import inputs, lcn_defs
+from pypck.device import DeviceConnection
 
 from ..models import Module
 
@@ -70,7 +71,12 @@ class VariableHandler:
             await self._publish(f"{prefix}/variable/{idx}/state", value_unit)
 
     async def handle_command(
-        self, mc: Any, handler: str, parts: list[str], payload: str, module: Module
+        self,
+        device_connection: DeviceConnection,
+        handler: str,
+        parts: list[str],
+        payload: str,
+        module: Module,
     ) -> None:
         """Handle a command to change a variable value."""
         if handler != "variable":
@@ -84,7 +90,7 @@ class VariableHandler:
         except ValueError:
             return
 
-        serial = mc.serials.software_serial
+        serial = device_connection.serials.software_serial
         if serial < 0x170206:
             variables = lcn_defs.Var.variables_old()
         else:
@@ -102,4 +108,4 @@ class VariableHandler:
 
             unit = getattr(module, f"variable{idx}").unit
 
-            await mc.var_abs(variable, value, unit, serial)
+            await device_connection.var_abs(variable, value, unit, serial)

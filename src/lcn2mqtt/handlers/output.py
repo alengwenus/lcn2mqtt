@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 from pydantic import ValidationError
 from pypck import inputs, lcn_defs
+from pypck.device import DeviceConnection
 
 from ..models import Module, Output, OutputState
 
@@ -44,7 +45,12 @@ class OutputHandler:
         await self._publish(f"{prefix}/output/{idx}/brightness", f"{inp.percent:.2f}")
 
     async def handle_command(
-        self, mc: Any, handler: str, parts: list[str], payload: str, module: Module
+        self,
+        device_connection: DeviceConnection,
+        handler: str,
+        parts: list[str],
+        payload: str,
+        module: Module,
     ) -> None:
         """Handle a command to change an output state or brightness."""
         if handler != "output":
@@ -89,14 +95,14 @@ class OutputHandler:
 
             if payload == "on":
                 if output.state == OutputState.OFF:
-                    await mc.toggle_output(idx - 1, ramp, to_memory=True)
+                    await device_connection.toggle_output(idx - 1, ramp, to_memory=True)
                     return
                 brightness = (
                     output.brightness if output.brightness is not None else 100.0
                 )
             elif payload == "off":
                 if output.state == OutputState.ON:
-                    await mc.toggle_output(idx - 1, ramp, to_memory=True)
+                    await device_connection.toggle_output(idx - 1, ramp, to_memory=True)
                     return
                 brightness = 0.0
             else:  # payload is a brightness value
@@ -107,4 +113,4 @@ class OutputHandler:
                     return
             brightness = max(0.0, min(100.0, brightness))
 
-            await mc.dim_output(idx - 1, brightness, ramp)
+            await device_connection.dim_output(idx - 1, brightness, ramp)

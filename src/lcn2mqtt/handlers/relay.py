@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pypck import inputs, lcn_defs
+from pypck.device import DeviceConnection
 
 from ..models import Module, RelayState
 
@@ -32,7 +33,11 @@ class RelayHandler:
                 await self._publish(f"{prefix}/relay/{i}/state", states[i - 1].value)
 
     async def handle_command(
-        self, mc: Any, handler: str, parts: list[str], payload: str
+        self,
+        device_connection: DeviceConnection,
+        handler: str,
+        parts: list[str],
+        payload: str,
     ) -> None:
         """Handle a command to change a relay state."""
         if handler != "relay":
@@ -60,4 +65,4 @@ class RelayHandler:
             return
         states = [lcn_defs.RelayStateModifier.NOCHANGE] * 8
         states[idx - 1] = modifier
-        await mc.control_relays(states)
+        await device_connection.control_relays(states)

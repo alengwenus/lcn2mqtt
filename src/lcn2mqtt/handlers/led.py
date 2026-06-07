@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pypck import inputs, lcn_defs
+from pypck.device import DeviceConnection
 
 from ..models import LedState, Module
 
@@ -44,7 +45,9 @@ class LedHandler:
             if did_change:
                 await self._publish(f"{prefix}/led/{i}/state", states[i - 1].value)
 
-    async def handle_command(self, mc: Any, idx: int, payload: str) -> None:
+    async def handle_command(
+        self, device_connection: DeviceConnection, idx: int, payload: str
+    ) -> None:
         """Handle a command to change an LED state."""
         if not 1 <= idx <= 12:
             return
@@ -59,4 +62,4 @@ class LedHandler:
             _LOG.warning("Invalid LED payload %r", payload)
             return
         led = lcn_defs.LedPort(idx - 1)
-        await mc.control_led(led, status)
+        await device_connection.control_led(led, status)

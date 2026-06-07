@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pypck import inputs, lcn_defs
+from pypck.device import DeviceConnection
 
 from ..models import Module, MotorState
 
@@ -41,7 +42,11 @@ class MotorRelayHandler:
                 )
 
     async def handle_command(
-        self, mc: Any, handler: str, parts: list[str], payload: str
+        self,
+        device_connection: DeviceConnection,
+        handler: str,
+        parts: list[str],
+        payload: str,
     ) -> None:
         """Handle a command to change a motor state."""
         if handler != "motor_relays":
@@ -67,4 +72,4 @@ class MotorRelayHandler:
             modifier = modifier_map.get(payload)
             if modifier is None:
                 return
-            await mc.control_motor_relays(idx - 1, modifier)
+            await device_connection.control_motor_relays(idx - 1, modifier)
