@@ -15,37 +15,6 @@ _LOG = logging.getLogger(__name__)
 
 Publish = Callable[[str, Any], Awaitable[None]]
 
-_VAR_INDEX_MAP = {
-    "VAR1ORTVAR": 1,
-    "VAR2ORR1VAR": 2,
-    "VAR3ORR2VAR": 3,
-    "VAR4": 4,
-    "VAR5": 5,
-    "VAR6": 6,
-    "VAR7": 7,
-    "VAR8": 8,
-    "VAR9": 9,
-    "VAR10": 10,
-    "VAR11": 11,
-    "VAR12": 12,
-}
-
-
-def _var_index(var: Any) -> int | None:
-    """Convert an LCN variable identifier to a 1-based index, or return None if it can't be determined."""
-    name = getattr(var, "name", "")
-    if not isinstance(name, str):
-        return None
-    if name in _VAR_INDEX_MAP:
-        return _VAR_INDEX_MAP[name]
-    upper = name.upper()
-    if upper.startswith("VAR"):
-        try:
-            return int(upper[3:])
-        except ValueError:
-            return None
-    return None
-
 
 class VariableHandler:
     """Handles status updates for LCN variables."""
@@ -182,7 +151,7 @@ class ThresholdHandler:
             return
         register = lcn_defs.Var.to_thrs_register_id(inp.var) + 1
         idx = lcn_defs.Var.to_thrs_id(inp.var) + 1
-        threshold = getattr(module, f"threshold{register}_{idx}", None)
+        threshold = getattr(module, f"threshold{register}{idx}", None)
         if threshold is None:
             _LOG.warning(
                 "Received threshold input for invalid threshold %d-%d", register, idx
@@ -218,20 +187,22 @@ class ThresholdHandler:
 
         serial = device_connection.serials.software_serial
         if serial < 0x170206:
-            variables = lcn_defs.Var.thresholds_old()
+            variables = list(chain.from_iterable(lcn_defs.Var.thresholds_old()))
         else:
-            variables = lcn_defs.Var.thresholds_new()
+            variables = list(chain.from_iterable(lcn_defs.Var.thresholds_new()))
         if variable not in variables:
             _LOG.warning("Received command for invalid threshold %d-%d", register, idx)
             return
 
-        if action == "set":
+        if action == "shift":
             try:
                 value = float(payload)
             except ValueError:
                 _LOG.warning("Invalid threshold payload %r", payload)
                 return
 
-            unit = getattr(module, f"threshold{register}_{idx}").unit
+            unit = getattr(module, f"threshold{register}{idx}").unit
 
-            await device_connection.var_abs(variable, value, unit, serial)
+            await device_connection.var_rel(
+                variable, value, unit, software_serial=serial
+            )

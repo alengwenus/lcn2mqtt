@@ -74,7 +74,15 @@ class LcnConfig(BaseSettings):
             field = f"{handler}{num}"
             field_path = ".".join([field] + sub_parts)
             overrides[addr_key][field_path] = value
-            _LOG.debug("Module override queued: %s -> %s=%r", key, field_path, value)
+            _LOG.debug(
+                "Module override queued: %s -> %s%03d%03d.%s=%r",
+                key,
+                "g" if is_group else "m",
+                seg,
+                addr,
+                field_path,
+                value,
+            )
         self._module_overrides = overrides
         return self
 

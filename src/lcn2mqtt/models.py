@@ -8,6 +8,14 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 from pypck import lcn_defs
 
 
+def alias_property(target: str):
+    """Create a property that aliases another attribute."""
+    return property(
+        lambda self: getattr(self, target),
+        lambda self, value: setattr(self, target, value),
+    )
+
+
 class OutputState(StrEnum):
     """State for module outputs."""
 
@@ -119,12 +127,12 @@ class Module(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True)
 
-    serials: ModuleSerials = ModuleSerials()
+    serials: ModuleSerials = Field(default_factory=ModuleSerials)
 
-    output1: Output = Output()
-    output2: Output = Output()
-    output3: Output = Output()
-    output4: Output = Output()
+    output1: Output = Field(default_factory=Output)
+    output2: Output = Field(default_factory=Output)
+    output3: Output = Field(default_factory=Output)
+    output4: Output = Field(default_factory=Output)
 
     relay1: RelayState | None = None
     relay2: RelayState | None = None
@@ -135,10 +143,10 @@ class Module(BaseModel):
     relay7: RelayState | None = None
     relay8: RelayState | None = None
 
-    motor1: Motor = Motor()
-    motor2: Motor = Motor()
-    motor3: Motor = Motor()
-    motor4: Motor = Motor()
+    motor1: Motor = Field(default_factory=Motor)
+    motor2: Motor = Field(default_factory=Motor)
+    motor3: Motor = Field(default_factory=Motor)
+    motor4: Motor = Field(default_factory=Motor)
 
     led1: LedState | None = None
     led2: LedState | None = None
@@ -153,39 +161,45 @@ class Module(BaseModel):
     led11: LedState | None = None
     led12: LedState | None = None
 
-    variable1: Variable = Variable()
-    variable2: Variable = Variable()
-    variable3: Variable = Variable()
-    variable4: Variable = Variable()
-    variable5: Variable = Variable()
-    variable6: Variable = Variable()
-    variable7: Variable = Variable()
-    variable8: Variable = Variable()
-    variable9: Variable = Variable()
-    variable10: Variable = Variable()
-    variable11: Variable = Variable()
-    variable12: Variable = Variable()
+    variable1: Variable = Field(default_factory=Variable)
+    variable2: Variable = Field(default_factory=Variable)
+    variable3: Variable = Field(default_factory=Variable)
+    variable4: Variable = Field(default_factory=Variable)
+    variable5: Variable = Field(default_factory=Variable)
+    variable6: Variable = Field(default_factory=Variable)
+    variable7: Variable = Field(default_factory=Variable)
+    variable8: Variable = Field(default_factory=Variable)
+    variable9: Variable = Field(default_factory=Variable)
+    variable10: Variable = Field(default_factory=Variable)
+    variable11: Variable = Field(default_factory=Variable)
+    variable12: Variable = Field(default_factory=Variable)
 
-    setpoint1: Variable = Variable()
-    setpoint2: Variable = Variable()
+    setpoint1: Variable = Field(default_factory=Variable)
+    setpoint2: Variable = Field(default_factory=Variable)
 
-    threshold1_1: Variable = Variable()
-    threshold1_2: Variable = Variable()
-    threshold1_3: Variable = Variable()
-    threshold1_4: Variable = Variable()
-    threshold1_5: Variable = Variable()
-    threshold2_1: Variable = Variable()
-    threshold2_2: Variable = Variable()
-    threshold2_3: Variable = Variable()
-    threshold2_4: Variable = Variable()
-    threshold3_1: Variable = Variable()
-    threshold3_2: Variable = Variable()
-    threshold3_3: Variable = Variable()
-    threshold3_4: Variable = Variable()
-    threshold4_1: Variable = Variable()
-    threshold4_2: Variable = Variable()
-    threshold4_3: Variable = Variable()
-    threshold4_4: Variable = Variable()
+    threshold11: Variable = Field(default_factory=Variable)
+    threshold12: Variable = Field(default_factory=Variable)
+    threshold13: Variable = Field(default_factory=Variable)
+    threshold14: Variable = Field(default_factory=Variable)
+    threshold15: Variable = Field(default_factory=Variable)
+    threshold21: Variable = Field(default_factory=Variable)
+    threshold22: Variable = Field(default_factory=Variable)
+    threshold23: Variable = Field(default_factory=Variable)
+    threshold24: Variable = Field(default_factory=Variable)
+    threshold31: Variable = Field(default_factory=Variable)
+    threshold32: Variable = Field(default_factory=Variable)
+    threshold33: Variable = Field(default_factory=Variable)
+    threshold34: Variable = Field(default_factory=Variable)
+    threshold41: Variable = Field(default_factory=Variable)
+    threshold42: Variable = Field(default_factory=Variable)
+    threshold43: Variable = Field(default_factory=Variable)
+    threshold44: Variable = Field(default_factory=Variable)
+
+    threshold1 = alias_property("threshold11")
+    threshold2 = alias_property("threshold12")
+    threshold3 = alias_property("threshold13")
+    threshold4 = alias_property("threshold14")
+    threshold5 = alias_property("threshold15")
 
     def update_relays(self, states: list[RelayState]) -> list[bool]:
         """Update the relay states and return a list of which ones changed."""

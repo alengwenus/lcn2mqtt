@@ -200,19 +200,19 @@ class Bridge:
         for field_path, value in overrides.items():
             try:
                 Bridge._set_nested_attr(module, field_path.split("."), value)
-                _LOG.debug(
-                    "Applied override %03d.%s%03d %s=%r",
-                    lcn_addr.seg_id,
+                _LOG.info(
+                    "Applied override %s%03d%03d.%s=%r",
                     "g" if lcn_addr.is_group else "m",
+                    lcn_addr.seg_id,
                     lcn_addr.addr_id,
                     field_path,
                     value,
                 )
             except Exception:  # noqa: BLE001
                 _LOG.warning(
-                    "Ignoring invalid override for %03d.%s%03d %s=%r",
-                    lcn_addr.seg_id,
+                    "Ignoring invalid override for %s%03d%03d.%s=%r",
                     "g" if lcn_addr.is_group else "m",
+                    lcn_addr.seg_id,
                     lcn_addr.addr_id,
                     field_path,
                     value,
