@@ -68,16 +68,23 @@ class VariableHandler:
             _LOG.warning("Received command for invalid variable index %d", idx)
             return
 
+        if action == "state":
+            return
+
+        try:
+            value = float(payload)
+        except ValueError:
+            _LOG.warning("Invalid variable payload %r", payload)
+            return
+
+        unit = getattr(module, f"variable{idx}").unit
+
         if action == "set":
-            try:
-                value = float(payload)
-            except ValueError:
-                _LOG.warning("Invalid variable payload %r", payload)
-                return
-
-            unit = getattr(module, f"variable{idx}").unit
-
             await device_connection.var_abs(variable, value, unit, serial)
+        elif action == "shift":
+            await device_connection.var_rel(
+                variable, value, unit, lcn_defs.RelVarRef.CURRENT, serial
+            )
 
 
 class SetpointHandler:
@@ -100,6 +107,12 @@ class SetpointHandler:
             return
         unit = variable.unit
         value_unit = inp.value.to_var_unit(unit)
+
+        # TODO:
+        # check for setpoint locked state
+        # store locked state it in variable model
+        # publish lock state change if changed
+
         if variable.update_value(int(inp.value.to_native())):
             await self._publish(f"{prefix}/setpoint/{idx}/state", value_unit)
 
@@ -124,16 +137,37 @@ class SetpointHandler:
             _LOG.warning("Received command for invalid setpoint index %d", idx)
             return
 
+        if action == "state":
+            return
+
+        if action == "lock" and payload.lower() in ("on", "off"):
+            # lock or unlock regulator
+            await device_connection.lock_regulator(idx - 1, payload.lower() == "on")
+            return
+
+        try:
+            value = float(payload)
+        except ValueError:
+            _LOG.warning("Invalid setpoint payload %r", payload)
+            return
+
+        unit = getattr(module, f"setpoint{idx}").unit
+
         if action == "set":
-            try:
-                value = float(payload)
-            except ValueError:
-                _LOG.warning("Invalid setpoint payload %r", payload)
-                return
-
-            unit = getattr(module, f"setpoint{idx}").unit
-
             await device_connection.var_abs(variable, value, unit)
+        elif action == "shift":
+            # shift current setpoint
+            await device_connection.var_rel(
+                variable, value, unit, lcn_defs.RelVarRef.CURRENT
+            )
+        elif action == "offset":
+            # shift programmed setpoint
+            await device_connection.var_rel(
+                variable, value, unit, lcn_defs.RelVarRef.PROG
+            )
+        elif action == "lock":
+            # lock regulator to value
+            await device_connection.lock_regulator(idx - 1, True, value)
 
 
 class ThresholdHandler:
@@ -149,6 +183,7 @@ class ThresholdHandler:
         """Handle a threshold status input, update the module state, and publish any changes."""
         if inp.var not in list(chain.from_iterable(lcn_defs.Var.thresholds())):
             return
+
         register = lcn_defs.Var.to_thrs_register_id(inp.var) + 1
         idx = lcn_defs.Var.to_thrs_id(inp.var) + 1
         threshold = getattr(module, f"threshold{register}{idx}", None)
@@ -157,9 +192,14 @@ class ThresholdHandler:
                 "Received threshold input for invalid threshold %d-%d", register, idx
             )
             return
+
+        value_native = int(inp.value.to_native())
         unit = threshold.unit
         value_unit = inp.value.to_var_unit(unit)
-        if threshold.update_value(int(inp.value.to_native())):
+
+        if threshold.update_value(int(inp.value.to_native())) and (
+            value_native != 0xFFFF
+        ):
             await self._publish(
                 f"{prefix}/threshold/{register}/{idx}/state", value_unit
             )
@@ -194,15 +234,26 @@ class ThresholdHandler:
             _LOG.warning("Received command for invalid threshold %d-%d", register, idx)
             return
 
+        if action == "state":
+            return
+
+        if action == "lock":
+            # needs implementation in pypck to lock threshold
+            return
+
+        try:
+            value = float(payload)
+        except ValueError:
+            _LOG.warning("Invalid threshold payload %r", payload)
+            return
+
+        unit = getattr(module, f"threshold{register}{idx}").unit
+
         if action == "shift":
-            try:
-                value = float(payload)
-            except ValueError:
-                _LOG.warning("Invalid threshold payload %r", payload)
-                return
-
-            unit = getattr(module, f"threshold{register}{idx}").unit
-
             await device_connection.var_rel(
-                variable, value, unit, software_serial=serial
+                variable, value, unit, lcn_defs.RelVarRef.CURRENT, serial
+            )
+        elif action == "offset":
+            await device_connection.var_rel(
+                variable, value, unit, lcn_defs.RelVarRef.PROG, serial
             )
