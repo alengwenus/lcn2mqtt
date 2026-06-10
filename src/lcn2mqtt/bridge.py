@@ -39,7 +39,7 @@ class Bridge:
         self._pchk: PchkConnectionManager | None = None
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
-        self._module_overrides = config.lcn.module_overrides
+        self._module_overrides = config.devices.module_overrides
         self._output_handler = OutputHandler(self._publish)
         self._relay_handler = RelayHandler(self._publish)
         self._motor_relay_handler = MotorRelayHandler(self._publish)

@@ -12,7 +12,7 @@ as a long-lived service inside a Docker container.
 
 ## Topic schema
 
-Base topic is configurable via `MQTT_BASE_TOPIC` (default `/lcn2mqtt`).
+Base topic is configurable via `LCN2MQTT_MQTT_BASE_TOPIC` (default `/lcn2mqtt`).
 
 State topics (published, retained):
 
@@ -38,11 +38,10 @@ Command topics (subscribed):
 Copy `.env.example` to `.env` and edit:
 
 ```
-LCN_HOST, LCN_PORT, LCN_USERNAME, LCN_PASSWORD
-LCN_MODULES   # comma list, e.g. "0.10,0.11"
-MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD
-MQTT_BASE_TOPIC, MQTT_CLIENT_ID, MQTT_QOS, MQTT_RETAIN
-LOG_LEVEL
+LCN2MQTT_LCN_HOST, LCN2MQTT_LCN_PORT, LCN2MQTT_LCN_USERNAME, LCN2MQTT_LCN_PASSWORD
+LCN2MQTT_MQTT_HOST, LCN2MQTT_MQTT_PORT, LCN2MQTT_MQTT_USERNAME, LCN2MQTT_MQTT_PASSWORD
+LCN2MQTT_MQTT_BASE_TOPIC, LCN2MQTT_MQTT_QOS
+LCN2MQTT_LOG_LEVEL
 ```
 
 ## Running locally
