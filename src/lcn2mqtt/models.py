@@ -93,6 +93,7 @@ class Variable(BaseModel):
 
     value: VariableValue = None  # native unit
     unit: lcn_defs.VarUnit = lcn_defs.VarUnit.NATIVE  # units for the variable
+    locked: bool = False  # whether the variable is locked (for setpoints)
 
     @field_validator("unit", mode="before")
     @classmethod
@@ -108,6 +109,13 @@ class Variable(BaseModel):
         """Update a variable and return True if it changed."""
         if self.value != value:
             self.value = value
+            return True
+        return False
+
+    def update_locked(self, locked: bool) -> bool:
+        """Update the variable locked state and return True if it changed."""
+        if self.locked != locked:
+            self.locked = locked
             return True
         return False
 

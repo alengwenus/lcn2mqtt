@@ -106,15 +106,15 @@ class SetpointHandler:
             _LOG.warning("Received variable input for invalid setpoint index %d", idx)
             return
         unit = variable.unit
-        value_unit = inp.value.to_var_unit(unit)
-
-        # TODO:
-        # check for setpoint locked state
-        # store locked state it in variable model
-        # publish lock state change if changed
+        value_unit = inp.value.to_var_unit(unit, is_lockable_regulator_source=True)
 
         if variable.update_value(int(inp.value.to_native())):
             await self._publish(f"{prefix}/setpoint/{idx}/state", value_unit)
+        if variable.update_locked(inp.value.is_locked_regulator()):
+            await self._publish(
+                f"{prefix}/setpoint/{idx}/locked",
+                "on" if inp.value.is_locked_regulator() else "off",
+            )
 
     async def handle_command(
         self,
@@ -137,7 +137,7 @@ class SetpointHandler:
             _LOG.warning("Received command for invalid setpoint index %d", idx)
             return
 
-        if action == "state":
+        if action in ["state", "locked"]:
             return
 
         if action == "lock" and payload.lower() in ("on", "off"):
