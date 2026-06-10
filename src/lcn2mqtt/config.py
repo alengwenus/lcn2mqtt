@@ -1,20 +1,65 @@
-"""Configuration loaded from environment variables."""
+"""Configuration loaded from environment variables or a YAML file."""
 
 from __future__ import annotations
 
 import logging
 import os
 import re
+from contextvars import ContextVar
 from typing import Any
 
+import yaml
 from dotenv import dotenv_values
-from pydantic import field_validator, model_validator, PrivateAttr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, field_validator, model_validator, PrivateAttr
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 _LOG = logging.getLogger(__name__)
 
+# Holds parsed YAML data for the duration of a load_config() call.
+_yaml_ctx: ContextVar[dict[str, Any]] = ContextVar("_yaml_ctx", default={})
 
-class DevicesConfig(BaseSettings):
+
+class _YamlSource(PydanticBaseSettingsSource):
+    """Settings source that reads from the in-memory YAML context.
+
+    *path* selects a nested section of the document, e.g. ``("lcn",)``
+    for the ``lcn:`` block.  Dict-valued entries are skipped so that nested
+    sub-configs always populate themselves through their own sources.
+    """
+
+    def __init__(self, settings_cls: type[BaseSettings], *path: str) -> None:
+        super().__init__(settings_cls)
+        self._path = path
+
+    def _section(self) -> dict[str, Any]:
+        data: Any = _yaml_ctx.get()
+        for key in self._path:
+            if not isinstance(data, dict):
+                return {}
+            data = data.get(key, {})
+        return data if isinstance(data, dict) else {}
+
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
+        value = self._section().get(field_name)
+        if isinstance(value, dict):
+            value = None  # nested sub-configs handle themselves
+        return value, field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        return {
+            k: v
+            for k, v in self._section().items()
+            if k in self.settings_cls.model_fields
+            and v is not None
+            and not isinstance(v, dict)
+        }
+
+
+class DevicesConfig(BaseModel):
     """Device attribute overrides parsed from LCN2MQTT_DEVICES_* environment variables."""
 
     model_config = SettingsConfigDict(
@@ -30,17 +75,47 @@ class DevicesConfig(BaseSettings):
 
     @model_validator(mode="after")
     def _parse_module_overrides(self) -> "DevicesConfig":
-        """Parse module attribute overrides from environment variables.
+        """Parse module overrides from YAML context and environment variables.
 
-        Pattern: LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
-        Example:  LCN2MQTT_DEVICES_M000007_OUTPUT1_TRANSITION=10
-                  -> module.output1.transition = 10
+        YAML structure (lower priority):
+            devices:
+              m000007:
+                output1:
+                  transition: "10"   ->  module.output1.transition = "10"
+
+        Env var pattern (higher priority):
+            LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
         """
+        overrides: dict[tuple[int, int, bool], dict[str, Any]] = {}
+
+        def _flatten(node: Any, parts: list[str]) -> dict[str, str]:
+            """Recursively flatten a nested dict to {dot.path: str_value}."""
+            if isinstance(node, dict):
+                result: dict[str, str] = {}
+                for k, v in node.items():
+                    result.update(_flatten(v, parts + [str(k)]))
+                return result
+            return {".".join(parts): str(node)} if node is not None and parts else {}
+
+        # 1. YAML context (lower priority)
+        addr_re = re.compile(r"^(m|g)(\d{3})(\d{3})$", re.IGNORECASE)
+        yaml_devices = _yaml_ctx.get().get("devices", {})
+        if isinstance(yaml_devices, dict):
+            for addr_str, handlers in yaml_devices.items():
+                ma = addr_re.match(str(addr_str))
+                if not ma or not isinstance(handlers, dict):
+                    continue
+                is_group = ma.group(1).lower() == "g"
+                seg, addr = int(ma.group(2)), int(ma.group(3))
+                addr_key = (seg, addr, is_group)
+                for sub_path, val in _flatten(handlers, []).items():
+                    self.add_override(addr_key, sub_path, val)
+
+        # 2. Environment variables (higher priority, override YAML)
         pattern = re.compile(
             r"^LCN2MQTT_DEVICES_(M|G)(\d{3})(\d{3})((?:_[A-Z0-9]+)*)$",
             re.IGNORECASE,
         )
-        overrides: dict[tuple[int, int, bool], dict[str, Any]] = {}
         env_file = self.model_config.get("env_file", ".env")
         if isinstance(env_file, (str, os.PathLike)):
             file_vars: dict[str, str | None] = dotenv_values(env_file)
@@ -57,21 +132,23 @@ class DevicesConfig(BaseSettings):
             is_group = m.group(1).upper() == "G"
             addr = int(m.group(3))
             addr_key = (seg, addr, is_group)
-            overrides.setdefault(addr_key, {})            
             sub_part = m.group(4)[1:].lower().replace("_", ".")
-            
-            overrides[addr_key][sub_part] = value
-            _LOG.debug(
-                "Module override queued: %s -> %s%03d%03d.%s=%r",
-                key,
-                "g" if is_group else "m",
-                seg,
-                addr,
-                sub_part,
-                value,
-            )
+            self.add_override(addr_key, sub_part, value)
+
         self._module_overrides = overrides
         return self
+
+    def add_override(self, addr_key, sub_part, value):
+        """Add a single override (used for testing)."""
+        _LOG.debug(
+            "Module override: %s%03d%03d.%s=%r",
+            "g" if addr_key[2] else "m",
+            addr_key[0],
+            addr_key[1],
+            sub_part,
+            value,
+        )
+        self._module_overrides.setdefault(addr_key, {})[sub_part] = value
 
     @property
     def module_overrides(self) -> dict[tuple[int, int, bool], dict[str, Any]]:
@@ -98,6 +175,23 @@ class LcnConfig(BaseSettings):
     sk_num_tries: int = 0
     acknowledge_commands: bool = False
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            _YamlSource(settings_cls, "lcn"),
+            file_secret_settings,
+        )
+
 
 class MqttConfig(BaseSettings):
     """MQTT connection and topic configuration."""
@@ -117,6 +211,23 @@ class MqttConfig(BaseSettings):
     password: str | None = None
     qos: int = 0
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            _YamlSource(settings_cls, "mqtt"),
+            file_secret_settings,
+        )
+
 
 class AppConfig(BaseSettings):
     """Main application configuration, including LCN and MQTT settings."""
@@ -134,6 +245,23 @@ class AppConfig(BaseSettings):
     mqtt: MqttConfig = MqttConfig()
     devices: DevicesConfig = DevicesConfig()
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            _YamlSource(settings_cls),  # reads from YAML root (scalars only)
+            file_secret_settings,
+        )
+
     @field_validator("log_level", mode="before")
     @classmethod
     def _upper(cls, v: str) -> str:
@@ -141,13 +269,46 @@ class AppConfig(BaseSettings):
         return v.upper()
 
 
-def load_config() -> AppConfig:
-    """Load the application configuration from environment variables and .env file."""
-    return AppConfig()
+def load_config(
+    yaml_file: str | os.PathLike = "configuration.yaml",
+) -> AppConfig:
+    """Load configuration from environment variables and an optional YAML file.
 
+    Priority (highest to lowest):
+    1. Environment variables (and .env file)
+    2. configuration.yaml
+    3. Built-in defaults
+
+    The YAML file mirrors the environment-variable nesting::
+
+        log_level: INFO
+        lcn:
+          host: 192.168.1.1
+          port: 4114
+          username: admin
+          password: secret
+        mqtt:
+          host: 192.168.1.2
+          port: 1883
+        devices:
+          m000007:
+            output1:
+              transition: "10"
+    """
+    try:
+        with open(yaml_file) as fh:
+            yaml_data: Any = yaml.safe_load(fh)
+    except FileNotFoundError:
+        yaml_data = {}
+    token = _yaml_ctx.set(yaml_data if isinstance(yaml_data, dict) else {})
+    try:
+        return AppConfig()
+    finally:
+        _yaml_ctx.reset(token)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    config = load_config()
+    config = load_config(os.path.expanduser("~/workspaces/lcn2mqtt/configuration.yaml"))
     print(config.model_dump_json(indent=2))
+    print(config.devices.module_overrides)
