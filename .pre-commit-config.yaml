@@ -13,3 +13,6 @@ repos:
     hooks:
       # Run mypy type checks.
       -   id: mypy
+          additional_dependencies:
+            - types-PyYAML
+            - PyYAML

@@ -17,6 +17,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from pypck.lcn_addr import LcnAddr
+
 _LOG = logging.getLogger(__name__)
 
 # Holds parsed YAML data for the duration of a load_config() call.
@@ -86,7 +88,6 @@ class DevicesConfig(BaseModel):
         Env var pattern (higher priority):
             LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
         """
-        overrides: dict[tuple[int, int, bool], dict[str, Any]] = {}
 
         def _flatten(node: Any, parts: list[str]) -> dict[str, str]:
             """Recursively flatten a nested dict to {dot.path: str_value}."""
@@ -107,9 +108,9 @@ class DevicesConfig(BaseModel):
                     continue
                 is_group = ma.group(1).lower() == "g"
                 seg, addr = int(ma.group(2)), int(ma.group(3))
-                addr_key = (seg, addr, is_group)
+                lcn_addr = LcnAddr(seg, addr, is_group)
                 for sub_path, val in _flatten(handlers, []).items():
-                    self.add_override(addr_key, sub_path, val)
+                    self.add_override(lcn_addr, sub_path, val)
 
         # 2. Environment variables (higher priority, override YAML)
         pattern = re.compile(
@@ -128,30 +129,29 @@ class DevicesConfig(BaseModel):
             m = pattern.match(key.upper())
             if m is None:
                 continue
-            seg = int(m.group(2))
+            seg_id = int(m.group(2))
             is_group = m.group(1).upper() == "G"
-            addr = int(m.group(3))
-            addr_key = (seg, addr, is_group)
+            addr_id = int(m.group(3))
+            lcn_addr = LcnAddr(seg_id, addr_id, is_group)
             sub_part = m.group(4)[1:].lower().replace("_", ".")
-            self.add_override(addr_key, sub_part, value)
+            self.add_override(lcn_addr, sub_part, value)
 
-        self._module_overrides = overrides
         return self
 
-    def add_override(self, addr_key, sub_part, value):
+    def add_override(self, lcn_addr: LcnAddr, sub_part: str, value: Any):
         """Add a single override (used for testing)."""
         _LOG.debug(
-            "Module override: %s%03d%03d.%s=%r",
-            "g" if addr_key[2] else "m",
-            addr_key[0],
-            addr_key[1],
+            "Module override queued: %s%03d%03d.%s=%r",
+            "g" if lcn_addr.is_group else "m",
+            lcn_addr.seg_id,
+            lcn_addr.addr_id,
             sub_part,
             value,
         )
-        self._module_overrides.setdefault(addr_key, {})[sub_part] = value
+        self._module_overrides.setdefault(lcn_addr, {})[sub_part] = value
 
     @property
-    def module_overrides(self) -> dict[tuple[int, int, bool], dict[str, Any]]:
+    def module_overrides(self) -> dict[LcnAddr, dict[str, Any]]:
         """Get the parsed module attribute overrides."""
         return self._module_overrides
 

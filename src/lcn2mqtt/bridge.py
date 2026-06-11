@@ -194,9 +194,7 @@ class Bridge:
     def _create_module(self, lcn_addr: LcnAddr) -> Module:
         """Create a Module and apply any env-var overrides for this address."""
         module = Module()
-        overrides = self._module_overrides.get(
-            (lcn_addr.seg_id, lcn_addr.addr_id, lcn_addr.is_group), {}
-        )
+        overrides = self._module_overrides.get(lcn_addr, {})
         for field_path, value in overrides.items():
             try:
                 Bridge._set_nested_attr(module, field_path.split("."), value)
