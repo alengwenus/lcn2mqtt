@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 from dotenv import dotenv_values
-from pydantic import BaseModel, field_validator, model_validator, PrivateAttr
+from pydantic import BaseModel, Field, field_validator, model_validator, PrivateAttr
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -74,6 +74,7 @@ class DevicesConfig(BaseModel):
     _module_overrides: dict[  # type: ignore[type-arg]
         tuple[int, int, bool], dict[str, Any]
     ] = PrivateAttr(default_factory=dict)
+    _overrides_parsed: bool = PrivateAttr(default=False)
 
     @model_validator(mode="after")
     def _parse_module_overrides(self) -> "DevicesConfig":
@@ -88,6 +89,9 @@ class DevicesConfig(BaseModel):
         Env var pattern (higher priority):
             LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
         """
+        if self._overrides_parsed:
+            return self
+        self._overrides_parsed = True
 
         def _flatten(node: Any, parts: list[str]) -> dict[str, str]:
             """Recursively flatten a nested dict to {dot.path: str_value}."""
@@ -233,7 +237,7 @@ class DiscoveryConfig(BaseSettings):
     """Home Assistant MQTT Discovery configuration."""
 
     model_config = SettingsConfigDict(
-        env_prefix="DISCOVERY_",
+        env_prefix="HOMEASSISTANT_",
         case_sensitive=False,
         env_file=".env",
         env_file_encoding="utf-8",
@@ -243,6 +247,23 @@ class DiscoveryConfig(BaseSettings):
     enabled: bool = False
     prefix: str = "homeassistant"
     scan_modules: bool = True
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            _YamlSource(settings_cls, "homeassistant"),
+            file_secret_settings,
+        )
 
 
 class AppConfig(BaseSettings):
@@ -257,10 +278,10 @@ class AppConfig(BaseSettings):
     )
 
     log_level: str = "INFO"
-    lcn: LcnConfig = LcnConfig()
-    mqtt: MqttConfig = MqttConfig()
-    devices: DevicesConfig = DevicesConfig()
-    discovery: DiscoveryConfig = DiscoveryConfig()
+    lcn: LcnConfig = Field(default_factory=LcnConfig)
+    mqtt: MqttConfig = Field(default_factory=MqttConfig)
+    devices: DevicesConfig = Field(default_factory=DevicesConfig)
+    homeassistant: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
 
     @classmethod
     def settings_customise_sources(

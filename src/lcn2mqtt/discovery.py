@@ -47,7 +47,7 @@ class DiscoveryPublisher:
 
     async def _publish_device(self, object_id: str, payload: dict[str, Any]) -> None:
         """Publish a device discovery payload (component=device)."""
-        prefix = self._config.discovery.prefix
+        prefix = self._config.homeassistant.prefix
         topic = f"{prefix}/device/{object_id}/config"
         payload["o"] = {
             "name": self._config.mqtt.base_topic,
@@ -175,7 +175,7 @@ class DiscoveryPublisher:
 
     async def publish_modules(self, pchk: PchkConnectionManager) -> None:
         """Scan LCN modules (optional) and publish module discovery entries."""
-        cfg = self._config.discovery
+        cfg = self._config.homeassistant
 
         if cfg.scan_modules:
             _LOG.info("Discovery: scanning LCN bus for modules …")

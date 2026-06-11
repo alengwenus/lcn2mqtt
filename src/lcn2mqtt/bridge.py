@@ -98,7 +98,7 @@ class Bridge:
             )
 
             discovery: DiscoveryPublisher | None = None
-            if self.config.discovery.enabled:
+            if self.config.homeassistant.enabled:
                 discovery = DiscoveryPublisher(self.config, mqtt)
                 await discovery.publish_bridge()
 

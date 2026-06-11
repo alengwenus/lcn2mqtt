@@ -17,6 +17,7 @@ wheels/
 !.vscode/tasks.json
 
 # other files
+data/
 .env
 configuration.yaml
 data/
