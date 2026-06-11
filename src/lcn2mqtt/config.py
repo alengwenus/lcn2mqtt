@@ -270,7 +270,7 @@ class AppConfig(BaseSettings):
 
 
 def load_config(
-    yaml_file: str | os.PathLike = "configuration.yaml",
+    yaml_file: str | os.PathLike = "data/configuration.yaml",
 ) -> AppConfig:
     """Load configuration from environment variables and an optional YAML file.
 
@@ -309,6 +309,8 @@ def load_config(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    config = load_config(os.path.expanduser("~/workspaces/lcn2mqtt/configuration.yaml"))
+    config = load_config(
+        os.path.expanduser("~/workspaces/lcn2mqtt/data/configuration.yaml")
+    )
     print(config.model_dump_json(indent=2))
     print(config.devices.module_overrides)
