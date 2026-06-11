@@ -9,23 +9,11 @@ from typing import Any
 from pypck import inputs, lcn_defs
 from pypck.device import DeviceConnection
 
-from ..models import LedState, Module
+from ..models import Module
 
 _LOG = logging.getLogger(__name__)
 
 Publish = Callable[[str, Any], Awaitable[None]]
-
-
-def _led_state(state: Any) -> LedState:
-    """Convert an LCN LED state to a LedState enum."""
-    name = getattr(state, "name", str(state)).lower()
-    mapping = {
-        "on": LedState.ON,
-        "off": LedState.OFF,
-        "blink": LedState.BLINK,
-        "flicker": LedState.FLICKER,
-    }
-    return mapping.get(name, LedState.OFF)
 
 
 class LedHandler:
@@ -39,27 +27,40 @@ class LedHandler:
         self, inp: inputs.ModStatusLedsAndLogicOps, module: Module, prefix: str
     ) -> None:
         """Handle an LED status input, update the module state, and publish any changes."""
-        states = [_led_state(s) for s in inp.states_led]
+        states = [state.name.lower() for state in inp.states_led]
         changed = module.update_leds(states)
-        for i, did_change in enumerate(changed, start=1):
+        for idx, did_change in enumerate(changed, start=1):
             if did_change:
-                await self._publish(f"{prefix}/led/{i}/state", states[i - 1].value)
+                await self._publish(f"{prefix}/led/{idx}/state", states[idx - 1])
 
     async def handle_command(
-        self, device_connection: DeviceConnection, idx: int, payload: str
+        self,
+        device_connection: DeviceConnection,
+        handler: str,
+        parts: list[str],
+        payload: str,
     ) -> None:
         """Handle a command to change an LED state."""
-        if not 1 <= idx <= 12:
+        if handler != "led":
             return
-        status_map = {
-            "on": lcn_defs.LedStatus.ON,
-            "off": lcn_defs.LedStatus.OFF,
-            "blink": lcn_defs.LedStatus.BLINK,
-            "flicker": lcn_defs.LedStatus.FLICKER,
-        }
-        status = status_map.get(payload.lower())
-        if status is None:
+        if len(parts) < 2:  # /<idx>/set
+            return
+        try:
+            idx = int(parts[0])
+            action = parts[1]
+            led = lcn_defs.LedPort(idx - 1)
+        except ValueError:
+            return
+
+        if action == "state":
+            return
+
+        try:
+            status = lcn_defs.LedStatus[payload.upper()]
+        except KeyError:
             _LOG.warning("Invalid LED payload %r", payload)
             return
-        led = lcn_defs.LedPort(idx - 1)
-        await device_connection.control_led(led, status)
+
+        if action == "set":
+            await device_connection.control_led(led, status)
+            await device_connection.request_status_leds_and_logic_ops()

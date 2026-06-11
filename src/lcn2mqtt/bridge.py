@@ -254,7 +254,8 @@ class Bridge:
             elif isinstance(inp, inputs.ModStatusRelays):
                 await self._relay_handler.handle_input(inp, module, prefix)
                 await self._motor_relay_handler.handle_input(inp, module, prefix)
-            # elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
+            elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
+                await self._led_handler.handle_input(inp, module, prefix)
             #     await self._led_handler.handle_input(inp, module, prefix)
             elif isinstance(inp, inputs.ModStatusVar):
                 await self._variable_handler.handle_input(inp, module, prefix)
@@ -340,6 +341,10 @@ class Bridge:
         elif handler == "threshold":
             await self._threshold_handler.handle_command(
                 device_connection, handler, sub_parts, payload, module
+            )
+        elif handler == "led":
+            await self._led_handler.handle_command(
+                device_connection, handler, sub_parts, payload
             )
         else:
             _LOG.debug("Ignoring command handler %s", handler)
