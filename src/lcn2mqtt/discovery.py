@@ -12,6 +12,7 @@ from pypck.lcn_addr import LcnAddr
 
 from . import __version__
 from .config import AppConfig
+from .models import Module
 
 _LOG = logging.getLogger(__name__)
 
@@ -33,7 +34,10 @@ class DiscoveryPublisher:
         return f"{kind}{addr.seg_id:03d}{addr.addr_id:03d}"
 
     def _addr_prefix(self, addr: LcnAddr) -> str:
-        return f"{self._config.mqtt.base_topic}/{self._addr_str(addr)}"
+        device = "group" if addr.is_group else "module"
+        return (
+            f"{self._config.mqtt.base_topic}/{device}/{addr.seg_id:d}/{addr.addr_id:d}"
+        )
 
     def _availability(self) -> list[dict[str, str]]:
         bridge_status = f"{self._config.mqtt.base_topic}/bridge/status"
@@ -107,9 +111,9 @@ class DiscoveryPublisher:
                 "p": "cover",
                 "unique_id": uid,
                 "name": f"Motor {i}",
-                "state_topic": f"{prefix}/motor/{i}/state",
+                "state_topic": f"{prefix}/motor_relays/{i}/state",
                 "value_template": "{{ value_json.state }}",
-                "command_topic": f"{prefix}/motor/{i}/set",
+                "command_topic": f"{prefix}/motor_relays/{i}/set",
                 "payload_open": "open",
                 "payload_close": "close",
                 "payload_stop": "stop",
@@ -122,11 +126,11 @@ class DiscoveryPublisher:
 
     # ---------- public API ----------
 
-    async def publish_module(self, addr: LcnAddr, module_name: str | None) -> None:
+    async def publish_module(self, addr: LcnAddr, module: Module) -> None:
         """Publish a device-discovery entry for one LCN module."""
         addr_str = self._addr_str(addr)
         prefix = self._addr_prefix(addr)
-        display_name = module_name.strip() if module_name else f"LCN {addr_str.upper()}"
+        display_name = module.name.strip() if module.name else f"LCN {addr_str.upper()}"
         cmps: dict[str, Any] = {}
         cmps.update(self._output_components(addr_str, prefix))
         cmps.update(self._relay_components(addr_str, prefix))
@@ -173,7 +177,9 @@ class DiscoveryPublisher:
         )
         _LOG.info("Discovery: bridge published")
 
-    async def publish_modules(self, pchk: PchkConnectionManager) -> None:
+    async def publish_modules(
+        self, pchk: PchkConnectionManager, modules: dict[LcnAddr, Module]
+    ) -> None:
         """Scan LCN modules (optional) and publish module discovery entries."""
         cfg = self._config.homeassistant
 
@@ -193,9 +199,13 @@ class DiscoveryPublisher:
         for addr, conn in list(connections.items()):
             if addr.is_group:
                 continue
-            module_name: str | None = None
+            if addr not in modules:
+                modules[addr] = Module()
+            module = modules[addr]
             try:
-                module_name = await conn.request_name()
+                name = await conn.request_name()
+                if name:
+                    module.name = name.strip()
             except Exception:  # noqa: BLE001
                 _LOG.debug("Discovery: could not fetch name for %s", addr)
 
@@ -203,8 +213,8 @@ class DiscoveryPublisher:
                 "Discovery: module %03d.%03d → %s",
                 addr.seg_id,
                 addr.addr_id,
-                f'"{module_name.strip()}"' if module_name else "unnamed",
+                f'"{module.name}"' if module.name else "unnamed",
             )
-            await self.publish_module(addr, module_name)
+            await self.publish_module(addr, module)
 
         _LOG.info("Discovery: done")

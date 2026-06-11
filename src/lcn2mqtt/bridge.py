@@ -41,6 +41,7 @@ class Bridge:
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
         self._module_overrides = config.devices.module_overrides
+        self._discovery: DiscoveryPublisher | None = None
         self._output_handler = OutputHandler(self._publish)
         self._relay_handler = RelayHandler(self._publish)
         self._motor_relay_handler = MotorRelayHandler(self._publish)
@@ -100,13 +101,14 @@ class Bridge:
             discovery: DiscoveryPublisher | None = None
             if self.config.homeassistant.enabled:
                 discovery = DiscoveryPublisher(self.config, mqtt)
+                self._discovery = discovery
                 await discovery.publish_bridge()
 
             self._pchk = await self._connect_lcn()
             stack.push_async_callback(self._pchk.async_close)
 
             if discovery is not None:
-                await discovery.publish_modules(self._pchk)
+                await discovery.publish_modules(self._pchk, self.modules)
 
             await self._subscribe_command_topics(mqtt)
 
@@ -239,7 +241,8 @@ class Bridge:
             lcn_addr: LcnAddr | None = getattr(inp, "physical_source_addr", None)
             if lcn_addr is None:
                 return
-            if lcn_addr not in self.modules:
+            is_new = lcn_addr not in self.modules
+            if is_new:
                 _LOG.info(
                     "Auto-registering new LCN module %s.%s",
                     lcn_addr.seg_id,
@@ -256,6 +259,15 @@ class Bridge:
             module = self.modules[lcn_addr]
             prefix = self._addr_prefix(lcn_addr)
 
+            if is_new and self._discovery is not None:
+                try:
+                    name = await device_connection.request_name()
+                    if name:
+                        module.name = name.strip()
+                except Exception:  # noqa: BLE001
+                    _LOG.debug("Discovery: could not fetch name for %s", lcn_addr)
+                await self._discovery.publish_module(lcn_addr, module)
+
             if isinstance(inp, inputs.ModSn):
                 await self._set_module_serials(module, inp)
             elif isinstance(inp, inputs.ModStatusOutput):
@@ -271,7 +283,8 @@ class Bridge:
                 await self._setpoint_handler.handle_input(inp, module, prefix)
                 await self._threshold_handler.handle_input(inp, module, prefix)
             else:
-                _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
+                pass
+                # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
             _LOG.exception("Error dispatching LCN input %s", type(inp).__name__)
@@ -309,7 +322,8 @@ class Bridge:
         )
         # _LOG.debug("Received: %s = %r", topic, payload)
 
-        if lcn_addr not in self.modules:
+        is_new = lcn_addr not in self.modules
+        if is_new:
             _LOG.info(
                 "Auto-registering new LCN module %s.%s via command",
                 lcn_addr.seg_id,
@@ -324,6 +338,15 @@ class Bridge:
             return
 
         module = self.modules[lcn_addr]
+        if is_new and self._discovery is not None:
+            try:
+                name = await device_connection.request_name()
+                if name:
+                    module.name = name.strip()
+            except Exception:  # noqa: BLE001
+                _LOG.debug("Discovery: could not fetch name for %s", lcn_addr)
+            await self._discovery.publish_module(lcn_addr, module)
+
         if handler == "output":
             await self._output_handler.handle_command(
                 device_connection, handler, sub_parts, payload, module

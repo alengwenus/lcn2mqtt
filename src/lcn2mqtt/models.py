@@ -136,6 +136,7 @@ class Module(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     serials: ModuleSerials = Field(default_factory=ModuleSerials)
+    name: str = ""
 
     output1: Output = Field(default_factory=Output)
     output2: Output = Field(default_factory=Output)
