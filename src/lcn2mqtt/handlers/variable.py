@@ -193,15 +193,20 @@ class ThresholdHandler:
             )
             return
 
-        value_native = int(inp.value.to_native())
+        # value_native = int(inp.value.to_native())
         unit = threshold.unit
-        value_unit = inp.value.to_var_unit(unit)
+        value_unit = inp.value.to_var_unit(unit, is_lockable_regulator_source=True)
 
-        if threshold.update_value(int(inp.value.to_native())) and (
-            value_native != 0xFFFF
-        ):
+        if threshold.update_value(
+            int(inp.value.to_native())
+        ):  # and (value_native != 0xFFFF):
             await self._publish(
                 f"{prefix}/threshold/{register}/{idx}/state", value_unit
+            )
+        if threshold.update_locked(inp.value.is_locked_threshold()):
+            await self._publish(
+                f"{prefix}/threshold/{register}/{idx}/locked",
+                "on" if inp.value.is_locked_threshold() else "off",
             )
 
     async def handle_command(
@@ -234,11 +239,18 @@ class ThresholdHandler:
             _LOG.warning("Received command for invalid threshold %d-%d", register, idx)
             return
 
-        if action == "state":
+        if action in ["state", "locked"]:
             return
 
-        if action == "lock":
-            # needs implementation in pypck to lock threshold
+        if action == "lock" and payload.lower() in ("on", "off"):
+            # lock or unlock threshold
+            states = [lcn_defs.ThresholdLockStateModifier.NOCHANGE] * 4
+            states[idx - 1] = (
+                lcn_defs.ThresholdLockStateModifier.ON
+                if payload.lower() == "on"
+                else lcn_defs.ThresholdLockStateModifier.OFF
+            )
+            await device_connection.lock_thresholds(register - 1, states)
             return
 
         try:

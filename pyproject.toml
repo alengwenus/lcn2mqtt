@@ -31,3 +31,6 @@ cache-dir = ".cache/ruff"
 
 [tool.mypy]
 cache_dir = ".cache/mypy"
+
+[tool.uv.sources]
+pypck = { path = "../pypck", editable = true }

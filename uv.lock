@@ -146,7 +146,7 @@ requires-dist = [
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.1" },
-    { name = "pypck", specifier = ">=0.9.12" },
+    { name = "pypck", editable = "../pypck" },
 ]
 
 [package.metadata.requires-dev]
@@ -415,12 +415,7 @@ wheels = [
 
 [[package]]
 name = "pypck"
-version = "0.9.12"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/78/be/bb8f0a35583df249b196e8f375b5745cbf31297941930fee6d71bfa66075/pypck-0.9.12.tar.gz", hash = "sha256:b7e97e2022430ef936513fe5f43c2b6d2040d329fee0b6eddc8a3e3beb5e0677", size = 53874, upload-time = "2026-05-31T15:43:08.782Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/af/ae/998842e4ffa41a71f8301b7081e23f7f47bed3c160394f7cbc2647c9d376/pypck-0.9.12-py3-none-any.whl", hash = "sha256:8e2ded98496796ec1b43ee80afafa3dac730cdf7a669f8b66aecf4e0bec39956", size = 44171, upload-time = "2026-05-31T15:43:07.637Z" },
-]
+source = { editable = "../pypck" }
 
 [[package]]
 name = "pytest"
