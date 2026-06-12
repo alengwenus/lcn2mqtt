@@ -5,10 +5,18 @@ build/
 dist/
 wheels/
 *.egg-info
+.cache/
+.ruff_cache/
 
 # Virtual environments
 .venv
 
+# Visual Studio Code
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+
 # other files
 .env
 configuration.yaml
+data/
