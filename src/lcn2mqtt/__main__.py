@@ -28,7 +28,8 @@ def _setup_logging(level: str) -> None:
 async def _amain() -> None:
     """Main async entry point for the bridge."""
     _log_level = (
-        os.environ.get("LCN2MQTT_LOG_LEVEL") or dotenv_values(".env").get("LCN2MQTT_LOG_LEVEL", "INFO")
+        os.environ.get("LCN2MQTT_LOG_LEVEL")
+        or dotenv_values(".env").get("LCN2MQTT_LOG_LEVEL", "INFO")
     ).upper()
     _setup_logging(_log_level)
     config = load_config()

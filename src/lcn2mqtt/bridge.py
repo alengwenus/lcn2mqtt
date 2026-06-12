@@ -210,19 +210,15 @@ class Bridge:
             try:
                 Bridge._set_nested_attr(module, field_path.split("."), value)
                 _LOG.info(
-                    "Applied override %s%03d%03d.%s=%r",
-                    "g" if lcn_addr.is_group else "m",
-                    lcn_addr.seg_id,
-                    lcn_addr.addr_id,
+                    "Applied override %s.%s=%r",
+                    lcn_addr.to_string(),
                     field_path,
                     value,
                 )
             except Exception:  # noqa: BLE001
                 _LOG.warning(
-                    "Ignoring invalid override for %s%03d%03d.%s=%r",
-                    "g" if lcn_addr.is_group else "m",
-                    lcn_addr.seg_id,
-                    lcn_addr.addr_id,
+                    "Ignoring invalid override for %s.%s=%r",
+                    lcn_addr.to_string(),
                     field_path,
                     value,
                 )
@@ -244,9 +240,8 @@ class Bridge:
             is_new = lcn_addr not in self.modules
             if is_new:
                 _LOG.info(
-                    "Auto-registering new LCN module %s.%s",
-                    lcn_addr.seg_id,
-                    lcn_addr.addr_id,
+                    "Auto-registering new LCN module %s",
+                    lcn_addr.to_string(),
                 )
                 self.modules[lcn_addr] = self._create_module(lcn_addr)
 
@@ -325,9 +320,8 @@ class Bridge:
         is_new = lcn_addr not in self.modules
         if is_new:
             _LOG.info(
-                "Auto-registering new LCN module %s.%s via command",
-                lcn_addr.seg_id,
-                lcn_addr.addr_id,
+                "Auto-registering new LCN module %s via command",
+                lcn_addr.to_string(),
             )
             self.modules[lcn_addr] = self._create_module(lcn_addr)
 

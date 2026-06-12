@@ -29,10 +29,6 @@ class DiscoveryPublisher:
     def _bridge_identifier(self) -> str:
         return f"lcn2mqtt_{self._config.mqtt.base_topic}"
 
-    def _addr_str(self, addr: LcnAddr) -> str:
-        kind = "g" if addr.is_group else "m"
-        return f"{kind}{addr.seg_id:03d}{addr.addr_id:03d}"
-
     def _addr_prefix(self, addr: LcnAddr) -> str:
         device = "group" if addr.is_group else "module"
         return (
@@ -126,10 +122,10 @@ class DiscoveryPublisher:
 
     # ---------- public API ----------
 
-    async def publish_module(self, addr: LcnAddr, module: Module) -> None:
+    async def publish_module(self, lcn_addr: LcnAddr, module: Module) -> None:
         """Publish a device-discovery entry for one LCN module."""
-        addr_str = self._addr_str(addr)
-        prefix = self._addr_prefix(addr)
+        addr_str = lcn_addr.to_string()
+        prefix = self._addr_prefix(lcn_addr)
         display_name = module.name.strip() if module.name else f"LCN {addr_str.upper()}"
         cmps: dict[str, Any] = {}
         cmps.update(self._output_components(addr_str, prefix))
