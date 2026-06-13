@@ -4,98 +4,34 @@ from __future__ import annotations
 
 import logging
 import os
-import re
-from typing import Any, ClassVar
+from typing import Any
 import json
-
-import yaml
-from dotenv import dotenv_values
 from pydantic import ConfigDict, Field, field_validator, model_validator, BaseModel
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
+    YamlConfigSettingsSource,
 )
 
 from pypck.lcn_addr import LcnAddr
 
+from lcn2mqtt.models import Module
+
 _LOG = logging.getLogger(__name__)
 
 
-class CustomizedSourcesBaseSettings(BaseSettings):
-    """BaseSettings subclass that allows customizing settings sources via settings_customise_sources()."""
+def flatten_with_values(data: dict[str, Any], prefix="") -> list[tuple[str, Any]]:
+    """Flatten a nested dictionary into a list of (path, value) pairs."""
+    items: list[tuple[str, Any]] = []
+    for key, value in data.items():
+        path = f"{prefix}.{key}" if prefix else key
 
-    path: ClassVar[str] = ""
-
-    model_config = SettingsConfigDict(
-        case_sensitive=False,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-    _yaml_data: ClassVar[dict[str, Any]] = {}
-
-    def __new__(
-        cls, yaml_file: str | os.PathLike = "data/configuration.yaml", *args, **kwargs
-    ):
-        """Load YAML data once when the first instance is created."""
-        try:
-            with open(yaml_file) as fh:
-                cls._yaml_data: Any = yaml.safe_load(fh)
-        except FileNotFoundError:
-            cls._yaml_data = {}
-
-        return super().__new__(cls, *args, **kwargs)
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            _YamlSource(settings_cls, cls._yaml_data, cls.path),
-            file_secret_settings,
-        )
-
-
-class _YamlSource(PydanticBaseSettingsSource):
-    """Settings source that reads from the in-memory YAML context.
-
-    *path* selects a nested section of the document, e.g. ``("lcn",)``
-    for the ``lcn:`` block.  Dict-valued entries are skipped so that nested
-    sub-configs always populate themselves through their own sources.
-    """
-
-    def __init__(
-        self, settings_cls: type[BaseSettings], yaml_data: dict[str, Any], path: str
-    ) -> None:
-        super().__init__(settings_cls)
-
-        if not isinstance(yaml_data, dict):
-            yaml_data = {}
-
-        section = yaml_data.get(path, yaml_data) if path != "" else yaml_data
-        self._section: dict[str, Any] = section if isinstance(section, dict) else {}
-
-    def get_field_value(self, field: Any, field_name: str):
-        value = self._section.get(field_name)
-        return (None if isinstance(value, dict) else value), field_name, False
-
-    def __call__(self) -> dict[str, Any]:
-        return {
-            key: value
-            for key, value in self._section.items()
-            # if key in self.settings_cls.model_fields
-            if value is not None and not isinstance(value, dict)
-        }
+        if isinstance(value, dict):
+            items.extend(flatten_with_values(value, path))
+        else:
+            items.append((path, value))
+    return items
 
 
 class HomeAssistantModuleDiscoveryConfig(BaseModel):
@@ -119,29 +55,39 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
         return result
 
 
-class DeviceConfig(BaseModel):
+class DeviceConfig(Module):
     """Configuration for a single LCN module/device."""
 
-    module_overrides: dict[str, Any] = {}
-    homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
-        default_factory=HomeAssistantModuleDiscoveryConfig
-    )
+    lcn_addr: LcnAddr
+    model_config = ConfigDict(extra="forbid")
 
-    def add_override(self, sub_part: str, value: Any):
-        """Add a single override (used for testing)."""
-        if sub_part.startswith("homeassistant"):
-            return
-        self.module_overrides[sub_part] = value
+    homeassistant: dict[str, Any] = {}
+
+    # homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
+    #     default_factory=HomeAssistantModuleDiscoveryConfig
+    # )
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_addr(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Log the applied overrides for a device."""
+        lcn_addr = data["lcn_addr"]
+        flattened = flatten_with_values(
+            {key: value for key, value in data.items() if key in Module.model_fields}
+        )
+
+        for path, value in flattened:
+            _LOG.info(
+                "Applied override %s.%s=%r",
+                lcn_addr.to_string(),
+                path,
+                value,
+            )
+        return data
 
 
-class LcnConfig(CustomizedSourcesBaseSettings):
+class LcnConfig(BaseModel):
     """LCN-PCHK connection configuration."""
-
-    path: ClassVar[str] = "lcn"
-
-    model_config = SettingsConfigDict(
-        env_prefix="LCN2MQTT_LCN_",
-    )
 
     host: str
     port: int = 4114
@@ -152,14 +98,8 @@ class LcnConfig(CustomizedSourcesBaseSettings):
     acknowledge_commands: bool = False
 
 
-class MqttConfig(CustomizedSourcesBaseSettings):
+class MqttConfig(BaseModel):
     """MQTT connection and topic configuration."""
-
-    path: ClassVar[str] = "mqtt"
-
-    model_config = SettingsConfigDict(
-        env_prefix="LCN2MQTT_MQTT_",
-    )
 
     base_topic: str = "lcn2mqtt"
     host: str
@@ -169,25 +109,24 @@ class MqttConfig(CustomizedSourcesBaseSettings):
     qos: int = 0
 
 
-class DiscoveryConfig(CustomizedSourcesBaseSettings):
+class DiscoveryConfig(BaseModel):
     """Home Assistant MQTT Discovery configuration."""
-
-    path: ClassVar[str] = "homeassistant"
-    model_config = SettingsConfigDict(
-        env_prefix="HOMEASSISTANT_",
-    )
 
     enabled: bool = False
     prefix: str = "homeassistant"
     scan_modules: bool = True
 
 
-class AppConfig(CustomizedSourcesBaseSettings):
+class AppConfig(BaseSettings):
     """Main application configuration, including LCN and MQTT settings."""
 
-    path: ClassVar[str] = ""
     model_config = SettingsConfigDict(
         env_prefix="LCN2MQTT_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="_",
+        case_sensitive=False,
+        extra="ignore",
     )
 
     log_level: str = "INFO"
@@ -196,140 +135,64 @@ class AppConfig(CustomizedSourcesBaseSettings):
     devices: dict[LcnAddr, DeviceConfig] = Field(default_factory=dict)
     homeassistant: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
 
+    def __new__(
+        cls, yaml_file: str | os.PathLike = "data/configuration.yaml", *args, **kwargs
+    ):
+        """Pass the YAML file path to the base class for loading"""
+        cls.model_config["yaml_file"] = yaml_file
+        return super().__new__(cls, *args, **kwargs)
+
     @field_validator("log_level", mode="before")
     @classmethod
     def _upper(cls, v: str) -> str:
         """Convert log level to uppercase."""
         return v.upper()
 
-    @model_validator(mode="after")
-    def _parse_devices(self) -> "AppConfig":
-        """Parse module overrides from YAML context and environment variables.
+    @model_validator(mode="before")
+    @classmethod
+    def to_lcn_addr(cls, data: Any) -> Any:
+        if "devices" not in data:
+            return data
 
-        YAML structure (lower priority):
-            devices:
-              m000007:
-                output1:
-                  transition: "10"   ->  module.output1.transition = "10"
+        # devices = data["devices"]
+        devices = {}
 
-                homeassistant:
-                  ...
+        for addr_str, device in data["devices"].items():
+            lcn_addr = LcnAddr.from_string(addr_str)
+            device["lcn_addr"] = lcn_addr
+            devices[lcn_addr] = device
 
-        Env var pattern (higher priority):
-            LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
-        """
+        data["devices"] = devices
 
-        # if self._parsed:
-        #     return self
-        # self._parsed = True
-        def _flatten(node: Any, parts: list[str]) -> dict[str, str]:
-            """Recursively flatten a nested dict to {dot.path: str_value}."""
-            if isinstance(node, dict):
-                result: dict[str, str] = {}
-                for key, value in node.items():
-                    result.update(_flatten(value, parts + [str(key)]))
-                return result
-            return {".".join(parts): str(node)} if node is not None and parts else {}
+        # data["devices"] = {
+        #     LcnAddr.from_string(addr_str): device
+        #     for addr_str, device in devices.items()
+        # }
 
-        def set_nested(data: dict, key: str, value: object) -> None:
-            """Set a value in a nested dict using a dot-separated key."""
-            parts = key.lower().split(".")
+        return data
 
-            current = data
-            for part in parts[:-1]:
-                current = current.setdefault(part, {})
-
-            current[parts[-1]] = value
-
-        ha_handlers: dict[LcnAddr, dict[str, Any]] = {}
-        overrides: dict[LcnAddr, dict[str, Any]] = {}
-
-        # 1. YAML context (lower priority)
-        addr_re = re.compile(r"^(m|g)(\d{3})(\d{3})$", re.IGNORECASE)
-        yaml_devices = self._yaml_data.get("devices", {})
-        if isinstance(yaml_devices, dict):
-            for addr_str, handlers in yaml_devices.items():
-                ma = addr_re.match(str(addr_str))
-                if not ma or not isinstance(handlers, dict):
-                    continue
-                lcn_addr = LcnAddr.from_string(addr_str)
-                self.devices[lcn_addr] = DeviceConfig()
-                ha_handlers |= {
-                    lcn_addr: handlers.pop("homeassistant", {})
-                }  # skip homeassistant section for overrides
-                overrides[lcn_addr] = _flatten(handlers, [])
-
-        # 2. Environment variables (higher priority, override YAML)
-        pattern = re.compile(
-            r"^LCN2MQTT_DEVICES_(M|G)(\d{3})(\d{3})((?:_[A-Z0-9]+)*)$",
-            re.IGNORECASE,
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            YamlConfigSettingsSource(settings_cls),
+            file_secret_settings,
         )
-        env_file = self.model_config.get("env_file", ".env")
-        if isinstance(env_file, (str, os.PathLike)):
-            file_vars: dict[str, str | None] = dotenv_values(env_file)
-        else:
-            file_vars = {}
-        env: dict[str, str] = {
-            key: value
-            for key, value in {**file_vars, **os.environ}.items()
-            if value is not None
-        }
-
-        for key, value in env.items():
-            m = pattern.match(key.upper())
-            if m is None:
-                continue
-            seg_id = int(m.group(2))
-            is_group = m.group(1).upper() == "G"
-            addr_id = int(m.group(3))
-            lcn_addr = LcnAddr(seg_id, addr_id, is_group)
-            self.devices.setdefault(lcn_addr, DeviceConfig())
-            sub_part = m.group(4)[1:].lower().replace("_", ".")
-            if sub_part.startswith("homeassistant"):
-                ha_sub_part = sub_part[len("homeassistant.") :].lower()
-                set_nested(ha_handlers.setdefault(lcn_addr, {}), ha_sub_part, value)
-            overrides.setdefault(lcn_addr, {})[sub_part] = value
-
-        for lcn_addr, override in overrides.items():
-            for sub_part, value in override.items():
-                self.devices[lcn_addr].add_override(sub_part, value)
-
-        for lcn_addr, ha_handler in ha_handlers.items():
-            self.devices[
-                lcn_addr
-            ].homeassistant = HomeAssistantModuleDiscoveryConfig.model_validate(
-                ha_handler
-            )
-
-        return self
 
 
 def load_config(
     yaml_file: str | os.PathLike = "data/configuration.yaml",
 ) -> AppConfig:
-    """Load configuration from environment variables and an optional YAML file.
-
-    Priority (highest to lowest):
-    1. Environment variables (and .env file)
-    2. configuration.yaml
-    3. Built-in defaults
-
-    The YAML file mirrors the environment-variable nesting::
-
-        log_level: INFO
-        lcn:
-          host: 192.168.1.1
-          port: 4114
-          username: admin
-          password: secret
-        mqtt:
-          host: 192.168.1.2
-          port: 1883
-        devices:
-          m000007:
-            output1:
-              transition: "10"
-    """
+    """Load configuration from the specified YAML file and environment variables."""
     return AppConfig(yaml_file=yaml_file)
 
 
@@ -338,7 +201,7 @@ if __name__ == "__main__":
     config = load_config(
         os.path.expanduser("~/workspaces/lcn2mqtt/data/configuration.yaml")
     )
-    print(config.model_dump_json(indent=2))
+    # print(config.model_dump_json(indent=2))
     # for addr, device in config.devices.items():
     #     print(device)
     #     print(device.module_overrides)

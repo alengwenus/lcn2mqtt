@@ -36,7 +36,7 @@ class Bridge:
 
     def __init__(self, config: AppConfig) -> None:
         self.config = config
-        self.modules: dict[LcnAddr, Module] = {}
+        self.modules: dict[LcnAddr, Module] = config.devices
         self._pchk: PchkConnectionManager | None = None
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
