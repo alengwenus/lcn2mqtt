@@ -111,7 +111,12 @@ class DevicesConfig(CustomizedSourcesBaseSettings):
     _module_overrides: dict[  # type: ignore[type-arg]
         tuple[int, int, bool], dict[str, Any]
     ] = PrivateAttr(default_factory=dict)
-    _overrides_parsed: bool = PrivateAttr(default=False)
+
+    _homeassistant: dict[  # type: ignore[type-arg]
+        tuple[int, int, bool], dict[str, Any]
+    ] = PrivateAttr(default_factory=dict)
+
+    _parsed: bool = PrivateAttr(default=False)
 
     @model_validator(mode="after")
     def _parse_module_overrides(self) -> "DevicesConfig":
@@ -126,9 +131,9 @@ class DevicesConfig(CustomizedSourcesBaseSettings):
         Env var pattern (higher priority):
             LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
         """
-        if self._overrides_parsed:
+        if self._parsed:
             return self
-        self._overrides_parsed = True
+        self._parsed = True
 
         def _flatten(node: Any, parts: list[str]) -> dict[str, str]:
             """Recursively flatten a nested dict to {dot.path: str_value}."""
@@ -189,12 +194,22 @@ class DevicesConfig(CustomizedSourcesBaseSettings):
         #     sub_part,
         #     value,
         # )
-        self._module_overrides.setdefault(lcn_addr, {})[sub_part] = value
+        if sub_part.startswith("homeassistant"):
+            self._homeassistant.setdefault(lcn_addr, {})[
+                sub_part[len("homeassistant.") :]
+            ] = value
+        else:
+            self._module_overrides.setdefault(lcn_addr, {})[sub_part] = value
 
     @property
     def module_overrides(self) -> dict[LcnAddr, dict[str, Any]]:
         """Get the parsed module attribute overrides."""
         return self._module_overrides
+
+    @property
+    def homeassistant(self) -> dict[LcnAddr, dict[str, Any]]:
+        """Get the parsed Home Assistant attribute."""
+        return self._homeassistant
 
 
 class LcnConfig(CustomizedSourcesBaseSettings):
@@ -302,3 +317,4 @@ if __name__ == "__main__":
     )
     print(config.model_dump_json(indent=2))
     print(config.devices.module_overrides)
+    print(config.devices.homeassistant)
