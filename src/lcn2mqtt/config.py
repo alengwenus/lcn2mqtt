@@ -6,10 +6,11 @@ import logging
 import os
 import re
 from typing import Any, ClassVar
+import json
 
 import yaml
 from dotenv import dotenv_values
-from pydantic import Field, field_validator, model_validator, PrivateAttr
+from pydantic import ConfigDict, Field, field_validator, model_validator, BaseModel
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -92,124 +93,45 @@ class _YamlSource(PydanticBaseSettingsSource):
         return {
             key: value
             for key, value in self._section.items()
-            if key in self.settings_cls.model_fields
-            and value is not None
-            and not isinstance(value, dict)
+            # if key in self.settings_cls.model_fields
+            if value is not None and not isinstance(value, dict)
         }
 
 
-class DevicesConfig(CustomizedSourcesBaseSettings):
-    """Device attribute overrides parsed from LCN2MQTT_DEVICES_* environment variables."""
+class HomeAssistantModuleDiscoveryConfig(BaseModel):
+    """Home Assistant discovery configuration for a single LCN module/device."""
 
-    model_config = SettingsConfigDict(
-        case_sensitive=False,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
+    model_config = ConfigDict(extra="allow")
+
+    include: dict[str, list[int]] = {}
+    exclude: dict[str, list[int]] = {}
+
+    @field_validator("include", "exclude", mode="before")
+    @classmethod
+    def parse_list(cls, value: dict[str, list[int]]) -> dict[str, list[int]]:
+        """Parse comma-separated strings into lists of ints."""
+        result: dict[str, list[int]] = {}
+        for key, val in value.items():
+            if isinstance(val, str):
+                result[key] = json.loads(val.strip("'"))
+            elif isinstance(val, list):
+                result[key] = [int(x) for x in val if isinstance(x, int)]
+        return result
+
+
+class DeviceConfig(BaseModel):
+    """Configuration for a single LCN module/device."""
+
+    module_overrides: dict[str, Any] = {}
+    homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
+        default_factory=HomeAssistantModuleDiscoveryConfig
     )
 
-    _module_overrides: dict[  # type: ignore[type-arg]
-        tuple[int, int, bool], dict[str, Any]
-    ] = PrivateAttr(default_factory=dict)
-
-    _homeassistant: dict[  # type: ignore[type-arg]
-        tuple[int, int, bool], dict[str, Any]
-    ] = PrivateAttr(default_factory=dict)
-
-    _parsed: bool = PrivateAttr(default=False)
-
-    @model_validator(mode="after")
-    def _parse_module_overrides(self) -> "DevicesConfig":
-        """Parse module overrides from YAML context and environment variables.
-
-        YAML structure (lower priority):
-            devices:
-              m000007:
-                output1:
-                  transition: "10"   ->  module.output1.transition = "10"
-
-        Env var pattern (higher priority):
-            LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
-        """
-        if self._parsed:
-            return self
-        self._parsed = True
-
-        def _flatten(node: Any, parts: list[str]) -> dict[str, str]:
-            """Recursively flatten a nested dict to {dot.path: str_value}."""
-            if isinstance(node, dict):
-                result: dict[str, str] = {}
-                for k, v in node.items():
-                    result.update(_flatten(v, parts + [str(k)]))
-                return result
-            return {".".join(parts): str(node)} if node is not None and parts else {}
-
-        # 1. YAML context (lower priority)
-        addr_re = re.compile(r"^(m|g)(\d{3})(\d{3})$", re.IGNORECASE)
-        yaml_devices = self._yaml_data.get("devices", {})
-        if isinstance(yaml_devices, dict):
-            for addr_str, handlers in yaml_devices.items():
-                ma = addr_re.match(str(addr_str))
-                if not ma or not isinstance(handlers, dict):
-                    continue
-                is_group = ma.group(1).lower() == "g"
-                seg, addr = int(ma.group(2)), int(ma.group(3))
-                lcn_addr = LcnAddr(seg, addr, is_group)
-                for sub_path, val in _flatten(handlers, []).items():
-                    self.add_override(lcn_addr, sub_path, val)
-
-        # 2. Environment variables (higher priority, override YAML)
-        pattern = re.compile(
-            r"^LCN2MQTT_DEVICES_(M|G)(\d{3})(\d{3})((?:_[A-Z0-9]+)*)$",
-            re.IGNORECASE,
-        )
-        env_file = self.model_config.get("env_file", ".env")
-        if isinstance(env_file, (str, os.PathLike)):
-            file_vars: dict[str, str | None] = dotenv_values(env_file)
-        else:
-            file_vars = {}
-        env: dict[str, str] = {
-            k: v for k, v in {**file_vars, **os.environ}.items() if v is not None
-        }
-        for key, value in env.items():
-            m = pattern.match(key.upper())
-            if m is None:
-                continue
-            seg_id = int(m.group(2))
-            is_group = m.group(1).upper() == "G"
-            addr_id = int(m.group(3))
-            lcn_addr = LcnAddr(seg_id, addr_id, is_group)
-            sub_part = m.group(4)[1:].lower().replace("_", ".")
-            self.add_override(lcn_addr, sub_part, value)
-
-        return self
-
-    def add_override(self, lcn_addr: LcnAddr, sub_part: str, value: Any):
+    def add_override(self, sub_part: str, value: Any):
         """Add a single override (used for testing)."""
-        # _LOG.debug(
-        #     "Module override queued: %s%03d%03d.%s=%r",
-        #     "g" if lcn_addr.is_group else "m",
-        #     lcn_addr.seg_id,
-        #     lcn_addr.addr_id,
-        #     sub_part,
-        #     value,
-        # )
         if sub_part.startswith("homeassistant"):
-            self._homeassistant.setdefault(lcn_addr, {})[
-                sub_part[len("homeassistant.") :]
-            ] = value
-        else:
-            self._module_overrides.setdefault(lcn_addr, {})[sub_part] = value
-
-    @property
-    def module_overrides(self) -> dict[LcnAddr, dict[str, Any]]:
-        """Get the parsed module attribute overrides."""
-        return self._module_overrides
-
-    @property
-    def homeassistant(self) -> dict[LcnAddr, dict[str, Any]]:
-        """Get the parsed Home Assistant attribute."""
-        return self._homeassistant
+            return
+        self.module_overrides[sub_part] = value
 
 
 class LcnConfig(CustomizedSourcesBaseSettings):
@@ -271,7 +193,7 @@ class AppConfig(CustomizedSourcesBaseSettings):
     log_level: str = "INFO"
     lcn: LcnConfig = Field(default_factory=LcnConfig)
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
-    devices: DevicesConfig = Field(default_factory=DevicesConfig)
+    devices: dict[LcnAddr, DeviceConfig] = Field(default_factory=dict)
     homeassistant: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
 
     @field_validator("log_level", mode="before")
@@ -279,6 +201,107 @@ class AppConfig(CustomizedSourcesBaseSettings):
     def _upper(cls, v: str) -> str:
         """Convert log level to uppercase."""
         return v.upper()
+
+    @model_validator(mode="after")
+    def _parse_devices(self) -> "AppConfig":
+        """Parse module overrides from YAML context and environment variables.
+
+        YAML structure (lower priority):
+            devices:
+              m000007:
+                output1:
+                  transition: "10"   ->  module.output1.transition = "10"
+
+                homeassistant:
+                  ...
+
+        Env var pattern (higher priority):
+            LCN2MQTT_DEVICES_{M|G}{SEG:03d}{ADDR:03d}_{HANDLER}{N}[_{ATTR}]=val
+        """
+
+        # if self._parsed:
+        #     return self
+        # self._parsed = True
+        def _flatten(node: Any, parts: list[str]) -> dict[str, str]:
+            """Recursively flatten a nested dict to {dot.path: str_value}."""
+            if isinstance(node, dict):
+                result: dict[str, str] = {}
+                for key, value in node.items():
+                    result.update(_flatten(value, parts + [str(key)]))
+                return result
+            return {".".join(parts): str(node)} if node is not None and parts else {}
+
+        def set_nested(data: dict, key: str, value: object) -> None:
+            """Set a value in a nested dict using a dot-separated key."""
+            parts = key.lower().split(".")
+
+            current = data
+            for part in parts[:-1]:
+                current = current.setdefault(part, {})
+
+            current[parts[-1]] = value
+
+        ha_handlers: dict[LcnAddr, dict[str, Any]] = {}
+        overrides: dict[LcnAddr, dict[str, Any]] = {}
+
+        # 1. YAML context (lower priority)
+        addr_re = re.compile(r"^(m|g)(\d{3})(\d{3})$", re.IGNORECASE)
+        yaml_devices = self._yaml_data.get("devices", {})
+        if isinstance(yaml_devices, dict):
+            for addr_str, handlers in yaml_devices.items():
+                ma = addr_re.match(str(addr_str))
+                if not ma or not isinstance(handlers, dict):
+                    continue
+                lcn_addr = LcnAddr.from_string(addr_str)
+                self.devices[lcn_addr] = DeviceConfig()
+                ha_handlers |= {
+                    lcn_addr: handlers.pop("homeassistant", {})
+                }  # skip homeassistant section for overrides
+                overrides[lcn_addr] = _flatten(handlers, [])
+
+        # 2. Environment variables (higher priority, override YAML)
+        pattern = re.compile(
+            r"^LCN2MQTT_DEVICES_(M|G)(\d{3})(\d{3})((?:_[A-Z0-9]+)*)$",
+            re.IGNORECASE,
+        )
+        env_file = self.model_config.get("env_file", ".env")
+        if isinstance(env_file, (str, os.PathLike)):
+            file_vars: dict[str, str | None] = dotenv_values(env_file)
+        else:
+            file_vars = {}
+        env: dict[str, str] = {
+            key: value
+            for key, value in {**file_vars, **os.environ}.items()
+            if value is not None
+        }
+
+        for key, value in env.items():
+            m = pattern.match(key.upper())
+            if m is None:
+                continue
+            seg_id = int(m.group(2))
+            is_group = m.group(1).upper() == "G"
+            addr_id = int(m.group(3))
+            lcn_addr = LcnAddr(seg_id, addr_id, is_group)
+            self.devices.setdefault(lcn_addr, DeviceConfig())
+            sub_part = m.group(4)[1:].lower().replace("_", ".")
+            if sub_part.startswith("homeassistant"):
+                ha_sub_part = sub_part[len("homeassistant.") :].lower()
+                set_nested(ha_handlers.setdefault(lcn_addr, {}), ha_sub_part, value)
+            overrides.setdefault(lcn_addr, {})[sub_part] = value
+
+        for lcn_addr, override in overrides.items():
+            for sub_part, value in override.items():
+                self.devices[lcn_addr].add_override(sub_part, value)
+
+        for lcn_addr, ha_handler in ha_handlers.items():
+            self.devices[
+                lcn_addr
+            ].homeassistant = HomeAssistantModuleDiscoveryConfig.model_validate(
+                ha_handler
+            )
+
+        return self
 
 
 def load_config(
@@ -316,5 +339,7 @@ if __name__ == "__main__":
         os.path.expanduser("~/workspaces/lcn2mqtt/data/configuration.yaml")
     )
     print(config.model_dump_json(indent=2))
-    print(config.devices.module_overrides)
-    print(config.devices.homeassistant)
+    # for addr, device in config.devices.items():
+    #     print(device)
+    #     print(device.module_overrides)
+    #     print(device.homeassistant)

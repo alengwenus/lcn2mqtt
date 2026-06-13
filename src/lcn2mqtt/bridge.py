@@ -40,7 +40,6 @@ class Bridge:
         self._pchk: PchkConnectionManager | None = None
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
-        self._module_overrides = config.devices.module_overrides
         self._discovery: DiscoveryPublisher | None = None
         self._output_handler = OutputHandler(self._publish)
         self._relay_handler = RelayHandler(self._publish)
@@ -205,7 +204,7 @@ class Bridge:
     def _create_module(self, lcn_addr: LcnAddr) -> Module:
         """Create a Module and apply any env-var overrides for this address."""
         module = Module()
-        overrides = self._module_overrides.get(lcn_addr, {})
+        overrides = self.config.devices[lcn_addr].module_overrides
         for field_path, value in overrides.items():
             try:
                 Bridge._set_nested_attr(module, field_path.split("."), value)
