@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import signal
 
-from dotenv import dotenv_values
 
 from .bridge import Bridge
 from .config import load_config
@@ -27,12 +25,8 @@ def _setup_logging(level: str) -> None:
 
 async def _amain() -> None:
     """Main async entry point for the bridge."""
-    _log_level = (
-        os.environ.get("LCN2MQTT_LOG_LEVEL")
-        or dotenv_values(".env").get("LCN2MQTT_LOG_LEVEL", "INFO")
-    ).upper()
-    _setup_logging(_log_level)
     config = load_config()
+    _setup_logging(config.log_level)
     log = logging.getLogger("lcn2mqtt")
     log.info("Starting lcn2mqtt bridge")
 

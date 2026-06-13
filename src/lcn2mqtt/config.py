@@ -5,12 +5,11 @@ from __future__ import annotations
 import logging
 import os
 import re
-from contextvars import ContextVar
 from typing import Any, ClassVar
 
 import yaml
 from dotenv import dotenv_values
-from pydantic import BaseModel, Field, field_validator, model_validator, PrivateAttr
+from pydantic import Field, field_validator, model_validator, PrivateAttr
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -20,9 +19,6 @@ from pydantic_settings import (
 from pypck.lcn_addr import LcnAddr
 
 _LOG = logging.getLogger(__name__)
-
-# Holds parsed YAML data for the duration of a load_config() call.
-_yaml_ctx: ContextVar[dict[str, Any]] = ContextVar("_yaml_ctx", default={})
 
 
 class CustomizedSourcesBaseSettings(BaseSettings):
@@ -37,6 +33,20 @@ class CustomizedSourcesBaseSettings(BaseSettings):
         extra="ignore",
     )
 
+    _yaml_data: ClassVar[dict[str, Any]] = {}
+
+    def __new__(
+        cls, yaml_file: str | os.PathLike = "data/configuration.yaml", *args, **kwargs
+    ):
+        """Load YAML data once when the first instance is created."""
+        try:
+            with open(yaml_file) as fh:
+                cls._yaml_data: Any = yaml.safe_load(fh)
+        except FileNotFoundError:
+            cls._yaml_data = {}
+
+        return super().__new__(cls, *args, **kwargs)
+
     @classmethod
     def settings_customise_sources(
         cls,
@@ -50,7 +60,7 @@ class CustomizedSourcesBaseSettings(BaseSettings):
             init_settings,
             env_settings,
             dotenv_settings,
-            _YamlSource(settings_cls, cls.path),
+            _YamlSource(settings_cls, cls._yaml_data, cls.path),
             file_secret_settings,
         )
 
@@ -63,35 +73,32 @@ class _YamlSource(PydanticBaseSettingsSource):
     sub-configs always populate themselves through their own sources.
     """
 
-    def __init__(self, settings_cls: type[BaseSettings], *path: str) -> None:
+    def __init__(
+        self, settings_cls: type[BaseSettings], yaml_data: dict[str, Any], path: str
+    ) -> None:
         super().__init__(settings_cls)
-        self._path = path
 
-    def _section(self) -> dict[str, Any]:
-        data: Any = _yaml_ctx.get()
-        for key in self._path:
-            if not isinstance(data, dict):
-                return {}
-            data = data.get(key, {})
-        return data if isinstance(data, dict) else {}
+        if not isinstance(yaml_data, dict):
+            yaml_data = {}
 
-    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
-        value = self._section().get(field_name)
-        if isinstance(value, dict):
-            value = None  # nested sub-configs handle themselves
-        return value, field_name, False
+        section = yaml_data.get(path, yaml_data) if path != "" else yaml_data
+        self._section: dict[str, Any] = section if isinstance(section, dict) else {}
+
+    def get_field_value(self, field: Any, field_name: str):
+        value = self._section.get(field_name)
+        return (None if isinstance(value, dict) else value), field_name, False
 
     def __call__(self) -> dict[str, Any]:
         return {
-            k: v
-            for k, v in self._section().items()
-            if k in self.settings_cls.model_fields
-            and v is not None
-            and not isinstance(v, dict)
+            key: value
+            for key, value in self._section.items()
+            if key in self.settings_cls.model_fields
+            and value is not None
+            and not isinstance(value, dict)
         }
 
 
-class DevicesConfig(BaseModel):
+class DevicesConfig(CustomizedSourcesBaseSettings):
     """Device attribute overrides parsed from LCN2MQTT_DEVICES_* environment variables."""
 
     model_config = SettingsConfigDict(
@@ -134,7 +141,7 @@ class DevicesConfig(BaseModel):
 
         # 1. YAML context (lower priority)
         addr_re = re.compile(r"^(m|g)(\d{3})(\d{3})$", re.IGNORECASE)
-        yaml_devices = _yaml_ctx.get().get("devices", {})
+        yaml_devices = self._yaml_data.get("devices", {})
         if isinstance(yaml_devices, dict):
             for addr_str, handlers in yaml_devices.items():
                 ma = addr_re.match(str(addr_str))
@@ -174,14 +181,14 @@ class DevicesConfig(BaseModel):
 
     def add_override(self, lcn_addr: LcnAddr, sub_part: str, value: Any):
         """Add a single override (used for testing)."""
-        _LOG.debug(
-            "Module override queued: %s%03d%03d.%s=%r",
-            "g" if lcn_addr.is_group else "m",
-            lcn_addr.seg_id,
-            lcn_addr.addr_id,
-            sub_part,
-            value,
-        )
+        # _LOG.debug(
+        #     "Module override queued: %s%03d%03d.%s=%r",
+        #     "g" if lcn_addr.is_group else "m",
+        #     lcn_addr.seg_id,
+        #     lcn_addr.addr_id,
+        #     sub_part,
+        #     value,
+        # )
         self._module_overrides.setdefault(lcn_addr, {})[sub_part] = value
 
     @property
@@ -241,7 +248,7 @@ class DiscoveryConfig(CustomizedSourcesBaseSettings):
 class AppConfig(CustomizedSourcesBaseSettings):
     """Main application configuration, including LCN and MQTT settings."""
 
-    path: ClassVar[str] = "app"
+    path: ClassVar[str] = ""
     model_config = SettingsConfigDict(
         env_prefix="LCN2MQTT_",
     )
@@ -285,16 +292,7 @@ def load_config(
             output1:
               transition: "10"
     """
-    try:
-        with open(yaml_file) as fh:
-            yaml_data: Any = yaml.safe_load(fh)
-    except FileNotFoundError:
-        yaml_data = {}
-    token = _yaml_ctx.set(yaml_data if isinstance(yaml_data, dict) else {})
-    try:
-        return AppConfig()
-    finally:
-        _yaml_ctx.reset(token)
+    return AppConfig(yaml_file=yaml_file)
 
 
 if __name__ == "__main__":
