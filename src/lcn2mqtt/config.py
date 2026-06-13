@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from contextvars import ContextVar
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 from dotenv import dotenv_values
@@ -23,6 +23,36 @@ _LOG = logging.getLogger(__name__)
 
 # Holds parsed YAML data for the duration of a load_config() call.
 _yaml_ctx: ContextVar[dict[str, Any]] = ContextVar("_yaml_ctx", default={})
+
+
+class CustomizedSourcesBaseSettings(BaseSettings):
+    """BaseSettings subclass that allows customizing settings sources via settings_customise_sources()."""
+
+    path: ClassVar[str] = ""
+
+    model_config = SettingsConfigDict(
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            _YamlSource(settings_cls, cls.path),
+            file_secret_settings,
+        )
 
 
 class _YamlSource(PydanticBaseSettingsSource):
@@ -160,15 +190,13 @@ class DevicesConfig(BaseModel):
         return self._module_overrides
 
 
-class LcnConfig(BaseSettings):
+class LcnConfig(CustomizedSourcesBaseSettings):
     """LCN-PCHK connection configuration."""
+
+    path: ClassVar[str] = "lcn"
 
     model_config = SettingsConfigDict(
         env_prefix="LCN2MQTT_LCN_",
-        case_sensitive=False,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
     )
 
     host: str
@@ -179,33 +207,14 @@ class LcnConfig(BaseSettings):
     sk_num_tries: int = 0
     acknowledge_commands: bool = False
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            _YamlSource(settings_cls, "lcn"),
-            file_secret_settings,
-        )
 
-
-class MqttConfig(BaseSettings):
+class MqttConfig(CustomizedSourcesBaseSettings):
     """MQTT connection and topic configuration."""
+
+    path: ClassVar[str] = "mqtt"
 
     model_config = SettingsConfigDict(
         env_prefix="LCN2MQTT_MQTT_",
-        case_sensitive=False,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
     )
 
     base_topic: str = "lcn2mqtt"
@@ -215,66 +224,26 @@ class MqttConfig(BaseSettings):
     password: str | None = None
     qos: int = 0
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            _YamlSource(settings_cls, "mqtt"),
-            file_secret_settings,
-        )
 
-
-class DiscoveryConfig(BaseSettings):
+class DiscoveryConfig(CustomizedSourcesBaseSettings):
     """Home Assistant MQTT Discovery configuration."""
 
+    path: ClassVar[str] = "homeassistant"
     model_config = SettingsConfigDict(
         env_prefix="HOMEASSISTANT_",
-        case_sensitive=False,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
     )
 
     enabled: bool = False
     prefix: str = "homeassistant"
     scan_modules: bool = True
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            _YamlSource(settings_cls, "homeassistant"),
-            file_secret_settings,
-        )
 
-
-class AppConfig(BaseSettings):
+class AppConfig(CustomizedSourcesBaseSettings):
     """Main application configuration, including LCN and MQTT settings."""
 
+    path: ClassVar[str] = "app"
     model_config = SettingsConfigDict(
         env_prefix="LCN2MQTT_",
-        case_sensitive=False,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
     )
 
     log_level: str = "INFO"
@@ -282,23 +251,6 @@ class AppConfig(BaseSettings):
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
     devices: DevicesConfig = Field(default_factory=DevicesConfig)
     homeassistant: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            _YamlSource(settings_cls),  # reads from YAML root (scalars only)
-            file_secret_settings,
-        )
 
     @field_validator("log_level", mode="before")
     @classmethod
