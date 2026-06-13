@@ -58,7 +58,6 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
 class DeviceConfig(Module):
     """Configuration for a single LCN module/device."""
 
-    lcn_addr: LcnAddr
     model_config = ConfigDict(extra="forbid")
 
     homeassistant: dict[str, Any] = {}
@@ -66,24 +65,6 @@ class DeviceConfig(Module):
     # homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
     #     default_factory=HomeAssistantModuleDiscoveryConfig
     # )
-
-    @model_validator(mode="before")
-    @classmethod
-    def validate_addr(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """Log the applied overrides for a device."""
-        lcn_addr = data["lcn_addr"]
-        flattened = flatten_with_values(
-            {key: value for key, value in data.items() if key in Module.model_fields}
-        )
-
-        for path, value in flattened:
-            _LOG.info(
-                "Applied override %s.%s=%r",
-                lcn_addr.to_string(),
-                path,
-                value,
-            )
-        return data
 
 
 class LcnConfig(BaseModel):
@@ -154,21 +135,29 @@ class AppConfig(BaseSettings):
         if "devices" not in data:
             return data
 
-        # devices = data["devices"]
         devices = {}
 
         for addr_str, device in data["devices"].items():
             lcn_addr = LcnAddr.from_string(addr_str)
+            flattened = flatten_with_values(
+                {
+                    key: value
+                    for key, value in device.items()
+                    if key in Module.model_fields
+                }
+            )
+            for path, value in flattened:
+                _LOG.info(
+                    "Applied override %s.%s=%r",
+                    lcn_addr.to_string(),
+                    path,
+                    value,
+                )
+
             device["lcn_addr"] = lcn_addr
             devices[lcn_addr] = device
 
         data["devices"] = devices
-
-        # data["devices"] = {
-        #     LcnAddr.from_string(addr_str): device
-        #     for addr_str, device in devices.items()
-        # }
-
         return data
 
     @classmethod

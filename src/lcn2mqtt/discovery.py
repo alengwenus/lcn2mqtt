@@ -7,7 +7,6 @@ import logging
 from typing import Any
 
 import aiomqtt
-from pypck.connection import DeviceConnection, PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
 
 from . import __version__
@@ -138,13 +137,17 @@ class DiscoveryPublisher:
                     "identifiers": [f"lcn2mqtt_{addr_str}"],
                     "name": display_name,
                     "manufacturer": "Issendorff",
-                    "model": "LCN Module",
+                    "model": module.serials.type.description,
+                    "serial_number": f"0x{module.serials.hardware:02X}",
+                    "sw_version": f"0x{module.serials.software:02X}",
+                    "hw_version": addr_str,
                     "via_device": self._bridge_identifier(),
                 },
                 "availability": self._availability(),
                 "cmps": cmps,
             },
         )
+        _LOG.info("Discovery: module published: %s", addr_str)
 
     async def publish_bridge(self) -> None:
         """Publish a device-discovery entry for the bridge itself."""
@@ -156,9 +159,9 @@ class DiscoveryPublisher:
             {
                 "dev": {
                     "identifiers": [bridge_id],
-                    "name": base,
+                    "name": f"LCN2MQTT Bridge ({base})",
                     "manufacturer": "lcn2mqtt",
-                    "model": "LCN-PCHK Bridge",
+                    "model": "LCN2MQTT Bridge",
                 },
                 "availability": self._availability(),
                 "cmps": {
@@ -173,44 +176,9 @@ class DiscoveryPublisher:
         )
         _LOG.info("Discovery: bridge published")
 
-    async def publish_modules(
-        self, pchk: PchkConnectionManager, modules: dict[LcnAddr, Module]
-    ) -> None:
+    async def publish_modules(self, modules: dict[LcnAddr, Module]) -> None:
         """Scan LCN modules (optional) and publish module discovery entries."""
-        cfg = self._config.homeassistant
-
-        if cfg.scan_modules:
-            _LOG.info("Discovery: scanning LCN bus for modules …")
-            await pchk.scan_modules()
-
-        connections: dict[LcnAddr, DeviceConnection] = pchk.device_connections
-        if not connections:
-            _LOG.warning("Discovery: no modules found on LCN bus")
-            return
-
-        _LOG.info(
-            "Discovery: publishing config for %d module(s)",
-            len(connections),
-        )
-        for addr, conn in list(connections.items()):
-            if addr.is_group:
+        for lcn_addr, module in modules.items():
+            if lcn_addr.is_group:
                 continue
-            if addr not in modules:
-                modules[addr] = Module()
-            module = modules[addr]
-            try:
-                name = await conn.request_name()
-                if name:
-                    module.name = name.strip()
-            except Exception:  # noqa: BLE001
-                _LOG.debug("Discovery: could not fetch name for %s", addr)
-
-            _LOG.info(
-                "Discovery: module %03d.%03d → %s",
-                addr.seg_id,
-                addr.addr_id,
-                f'"{module.name}"' if module.name else "unnamed",
-            )
-            await self.publish_module(addr, module)
-
-        _LOG.info("Discovery: done")
+            await self.publish_module(lcn_addr, module)

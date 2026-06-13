@@ -106,8 +106,12 @@ class Bridge:
             self._pchk = await self._connect_lcn()
             stack.push_async_callback(self._pchk.async_close)
 
-            if discovery is not None:
-                await discovery.publish_modules(self._pchk, self.modules)
+            if self.config.homeassistant.scan_modules:
+                await self._discover_modules()
+
+            # Ensure all modules from config are created and complete before starting.
+            for lcn_addr in self.modules:
+                await self.ensure_module_complete(lcn_addr)
 
             await self._subscribe_command_topics(mqtt)
 
@@ -177,51 +181,72 @@ class Bridge:
         _LOG.info("Connected to LCN-PCHK at %s:%s", cfg.host, cfg.port)
         return pchk
 
-    async def _get_device_connection(self, seg: int, addr: int):
-        """Get the module connection for the given segment and address."""
+    async def _get_device_connection(self, lcn_addr: LcnAddr):
+        """Get the module connection for the given LCN address."""
         if self._pchk is None:
             return None
-        lcn_addr = LcnAddr(seg, addr, False)
         device_connection = self._pchk.get_device_connection(lcn_addr)
 
         await device_connection.serials_known()
         if device_connection.serials.hardware_serial == -1:
             _LOG.warning(
                 "Timeout waiting for serials of module %s.%s; several commands may not work",
-                seg,
-                addr,
+                lcn_addr.seg_id,
+                lcn_addr.addr_id,
             )
         return device_connection
 
-    @staticmethod
-    def _set_nested_attr(obj: object, parts: list[str], value: str) -> None:
-        """Traverse *parts* on *obj* and set the final attribute to *value*."""
-        if len(parts) == 1:
-            setattr(obj, parts[0], value)
-        else:
-            Bridge._set_nested_attr(getattr(obj, parts[0]), parts[1:], value)
+    async def ensure_module_complete(self, lcn_addr: LcnAddr) -> Module:
+        """Ensure a Module exists for the given LCN address and return it."""
+        publish: bool = False
+        if lcn_addr not in self.modules:
+            _LOG.info(
+                "Auto-registering new LCN module %s",
+                lcn_addr.to_string(),
+            )
+            self.modules[lcn_addr] = Module(address=lcn_addr)
+            publish = True
 
-    def _create_module(self, lcn_addr: LcnAddr) -> Module:
-        """Create a Module and apply any env-var overrides for this address."""
-        module = Module()
-        overrides = self.config.devices[lcn_addr].module_overrides
-        for field_path, value in overrides.items():
+        module = self.modules[lcn_addr]
+        device_connection = await self._get_device_connection(lcn_addr)
+
+        if module.device_connection is None:
+            module.device_connection = device_connection
+            publish = True
+
+        if module.name == "" and device_connection is not None:
             try:
-                Bridge._set_nested_attr(module, field_path.split("."), value)
-                _LOG.info(
-                    "Applied override %s.%s=%r",
-                    lcn_addr.to_string(),
-                    field_path,
-                    value,
-                )
+                module.name = lcn_addr.to_string()  # default name if request_name fails
+                name = await device_connection.request_name()
+                if name:
+                    module.name = name.strip()
+                publish = True
             except Exception:  # noqa: BLE001
-                _LOG.warning(
-                    "Ignoring invalid override for %s.%s=%r",
-                    lcn_addr.to_string(),
-                    field_path,
-                    value,
-                )
+                _LOG.debug("Discovery: could not fetch name for %s", lcn_addr)
+
+        if self._discovery is not None and publish:
+            await self._discovery.publish_module(lcn_addr, module)
+
         return module
+
+    async def _discover_modules(self) -> None:
+        """Discover modules on the LCN bus and populate the modules dictionary."""
+        if self._pchk is None:
+            return
+
+        _LOG.info("Scanning LCN bus for modules …")
+        await self._pchk.scan_modules()
+        if not self._pchk.device_connections:
+            _LOG.warning("No modules found on LCN bus")
+            return
+
+        _LOG.info(
+            "Discovered %d module(s) on LCN bus",
+            len(self._pchk.device_connections),
+        )
+
+        for lcn_addr in self._pchk.device_connections:
+            await self.ensure_module_complete(lcn_addr)
 
     # ---------- LCN -> MQTT ----------
 
@@ -236,31 +261,11 @@ class Bridge:
             lcn_addr: LcnAddr | None = getattr(inp, "physical_source_addr", None)
             if lcn_addr is None:
                 return
-            is_new = lcn_addr not in self.modules
-            if is_new:
-                _LOG.info(
-                    "Auto-registering new LCN module %s",
-                    lcn_addr.to_string(),
-                )
-                self.modules[lcn_addr] = self._create_module(lcn_addr)
 
-            device_connection = await self._get_device_connection(
-                lcn_addr.seg_id, lcn_addr.addr_id
-            )
-            if device_connection is None:
-                return
-
-            module = self.modules[lcn_addr]
+            module = await self.ensure_module_complete(
+                lcn_addr
+            )  # ensure module exists and is complete before handling input
             prefix = self._addr_prefix(lcn_addr)
-
-            if is_new and self._discovery is not None:
-                try:
-                    name = await device_connection.request_name()
-                    if name:
-                        module.name = name.strip()
-                except Exception:  # noqa: BLE001
-                    _LOG.debug("Discovery: could not fetch name for %s", lcn_addr)
-                await self._discovery.publish_module(lcn_addr, module)
 
             if isinstance(inp, inputs.ModSn):
                 await self._set_module_serials(module, inp)
@@ -316,29 +321,10 @@ class Bridge:
         )
         # _LOG.debug("Received: %s = %r", topic, payload)
 
-        is_new = lcn_addr not in self.modules
-        if is_new:
-            _LOG.info(
-                "Auto-registering new LCN module %s via command",
-                lcn_addr.to_string(),
-            )
-            self.modules[lcn_addr] = self._create_module(lcn_addr)
-
-        device_connection = await self._get_device_connection(
-            lcn_addr.seg_id, lcn_addr.addr_id
-        )
-        if device_connection is None:
-            return
-
-        module = self.modules[lcn_addr]
-        if is_new and self._discovery is not None:
-            try:
-                name = await device_connection.request_name()
-                if name:
-                    module.name = name.strip()
-            except Exception:  # noqa: BLE001
-                _LOG.debug("Discovery: could not fetch name for %s", lcn_addr)
-            await self._discovery.publish_module(lcn_addr, module)
+        module = await self.ensure_module_complete(
+            lcn_addr
+        )  # ensure module exists and is complete before handling input
+        device_connection = module.device_connection
 
         if handler == "output":
             await self._output_handler.handle_command(

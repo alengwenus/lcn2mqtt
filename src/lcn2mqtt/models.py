@@ -6,6 +6,8 @@ from enum import StrEnum
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from pypck import lcn_defs
+from pypck.lcn_addr import LcnAddr
+from pypck.device import DeviceConnection
 
 
 def alias_property(target: str):
@@ -133,8 +135,10 @@ class Motor(BaseModel):
 class Module(BaseModel):
     """Model for an LCN module."""
 
-    model_config = ConfigDict(validate_assignment=True)
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
+    device_connection: DeviceConnection | None = None
+    address: LcnAddr = Field(..., alias="lcn_addr")
     serials: ModuleSerials = Field(default_factory=ModuleSerials)
     name: str = ""
 

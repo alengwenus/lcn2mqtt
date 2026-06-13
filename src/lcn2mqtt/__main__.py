@@ -6,12 +6,11 @@ import asyncio
 import logging
 import signal
 
-
 from .bridge import Bridge
 from .config import load_config
 
 
-def _setup_logging(level: str) -> None:
+def _setup_logging(level: str) -> logging.Logger:
     """Configure logging with the specified log level."""
     root = logging.getLogger()
     root.setLevel(level)
@@ -21,14 +20,15 @@ def _setup_logging(level: str) -> None:
             logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
         )
         root.addHandler(handler)
+    return root
 
 
 async def _amain() -> None:
     """Main async entry point for the bridge."""
-    config = load_config()
-    _setup_logging(config.log_level)
-    log = logging.getLogger("lcn2mqtt")
+    log = _setup_logging("INFO")
     log.info("Starting lcn2mqtt bridge")
+    config = load_config()
+    log.setLevel(config.log_level)
 
     bridge = Bridge(config)
 
