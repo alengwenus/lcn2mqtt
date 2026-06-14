@@ -16,7 +16,7 @@ from pydantic_settings import (
 
 from pypck.lcn_addr import LcnAddr
 
-from lcn2mqtt.models import Module
+from lcn2mqtt.module import Module
 
 _LOG = logging.getLogger(__name__)
 

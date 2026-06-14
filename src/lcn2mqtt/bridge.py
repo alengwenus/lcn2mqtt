@@ -13,7 +13,7 @@ from pypck.connection import PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
 
 from .config import AppConfig
-from .discovery import DiscoveryPublisher
+from .homeassistant.discovery import DiscoveryPublisher
 from .handlers import (
     LedHandler,
     MotorRelayHandler,
@@ -23,7 +23,7 @@ from .handlers import (
     SetpointHandler,
     ThresholdHandler,
 )
-from .models import Module
+from .module import Module
 
 _LOG = logging.getLogger(__name__)
 

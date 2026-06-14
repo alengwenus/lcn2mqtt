@@ -9,7 +9,7 @@ from typing import Any
 from pypck import inputs, lcn_defs
 from pypck.device import DeviceConnection
 
-from ..models import Module, MotorState
+from ..module import Module, MotorState
 
 _LOG = logging.getLogger(__name__)
 
