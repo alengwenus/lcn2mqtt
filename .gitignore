@@ -15,6 +15,8 @@ wheels/
 .vscode/*
 !.vscode/launch.json
 !.vscode/tasks.json
+!.vscode/extensions.json
+!.vscode/settings.default.jsonc
 
 # other files
 data/
