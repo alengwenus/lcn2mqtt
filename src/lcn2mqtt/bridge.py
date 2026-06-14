@@ -13,16 +13,16 @@ from pypck.connection import PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
 
 from .config import AppConfig
-from .homeassistant.discovery import DiscoveryPublisher
 from .handlers import (
     LedHandler,
     MotorRelayHandler,
     OutputHandler,
     RelayHandler,
-    VariableHandler,
     SetpointHandler,
     ThresholdHandler,
+    VariableHandler,
 )
+from .homeassistant.discovery import DiscoveryPublisher
 from .module import Module
 
 _LOG = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class Bridge:
 
     def _base_topic(self) -> str:
         """Base MQTT topic for this bridge."""
-        return f"{self.config.mqtt.base_topic}"
+        return f"{self.config.mqtt.basetopic}"
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
         """MQTT topic prefix for the given LCN address."""
@@ -133,7 +133,7 @@ class Bridge:
             port=cfg.port,
             username=cfg.username,
             password=cfg.password,
-            identifier=f"{self.config.mqtt.base_topic}",
+            identifier=f"{self.config.mqtt.basetopic}",
             will=will,
         )
 

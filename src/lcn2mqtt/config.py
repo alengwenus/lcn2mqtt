@@ -5,17 +5,17 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any
-import json
-from pydantic import ConfigDict, Field, field_validator, model_validator, BaseModel
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
     YamlConfigSettingsSource,
 )
-
 from pypck.lcn_addr import LcnAddr
 
+from lcn2mqtt.homeassistant.module_config import HomeAssistantModuleDiscoveryConfig
 from lcn2mqtt.module import Module
 
 _LOG = logging.getLogger(__name__)
@@ -34,37 +34,23 @@ def flatten_with_values(data: dict[str, Any], prefix="") -> list[tuple[str, Any]
     return items
 
 
-class HomeAssistantModuleDiscoveryConfig(BaseModel):
-    """Home Assistant discovery configuration for a single LCN module/device."""
-
-    model_config = ConfigDict(extra="allow")
-
-    include: dict[str, list[int]] = {}
-    exclude: dict[str, list[int]] = {}
-
-    @field_validator("include", "exclude", mode="before")
-    @classmethod
-    def parse_list(cls, value: dict[str, list[int]]) -> dict[str, list[int]]:
-        """Parse comma-separated strings into lists of ints."""
-        result: dict[str, list[int]] = {}
-        for key, val in value.items():
-            if isinstance(val, str):
-                result[key] = json.loads(val.strip("'"))
-            elif isinstance(val, list):
-                result[key] = [int(x) for x in val if isinstance(x, int)]
-        return result
-
-
 class DeviceConfig(Module):
     """Configuration for a single LCN module/device."""
 
     model_config = ConfigDict(extra="forbid")
 
-    homeassistant: dict[str, Any] = {}
+    homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
+        default_factory=HomeAssistantModuleDiscoveryConfig
+    )
 
-    # homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
-    #     default_factory=HomeAssistantModuleDiscoveryConfig
-    # )
+    @model_validator(mode="before")
+    @classmethod
+    def configure_homeassistant(cls, data: Any) -> Any:
+        if "homeassistant" not in data or not isinstance(data["homeassistant"], dict):
+            return data
+
+        data["homeassistant"]["address"] = data["address"]
+        return data
 
 
 class LcnConfig(BaseModel):
@@ -82,7 +68,7 @@ class LcnConfig(BaseModel):
 class MqttConfig(BaseModel):
     """MQTT connection and topic configuration."""
 
-    base_topic: str = "lcn2mqtt"
+    basetopic: str = "lcn2mqtt"
     host: str
     port: int = 1883
     username: str | None = None
@@ -154,11 +140,16 @@ class AppConfig(BaseSettings):
                     value,
                 )
 
-            device["lcn_addr"] = lcn_addr
+            device["address"] = lcn_addr
             devices[lcn_addr] = device
 
         data["devices"] = devices
         return data
+
+    def model_post_init(self, __context):
+        """Inject global settings into device configs."""
+        for device in self.devices.values():
+            device.homeassistant.inject_basetopic(self.mqtt.basetopic)
 
     @classmethod
     def settings_customise_sources(
@@ -190,7 +181,7 @@ if __name__ == "__main__":
     config = load_config(
         os.path.expanduser("~/workspaces/lcn2mqtt/data/configuration.yaml")
     )
-    # print(config.model_dump_json(indent=2))
+    print(config.model_dump_json(indent=2))
     # for addr, device in config.devices.items():
     #     print(device)
     #     print(device.module_overrides)

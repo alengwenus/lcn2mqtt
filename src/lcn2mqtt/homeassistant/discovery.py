@@ -26,16 +26,16 @@ class DiscoveryPublisher:
     # ---------- helpers ----------
 
     def _bridge_identifier(self) -> str:
-        return f"{self._config.mqtt.base_topic}_bridge"
+        return f"{self._config.mqtt.basetopic}_bridge"
 
     def _addr_prefix(self, addr: LcnAddr) -> str:
         device = "group" if addr.is_group else "module"
         return (
-            f"{self._config.mqtt.base_topic}/{device}/{addr.seg_id:d}/{addr.addr_id:d}"
+            f"{self._config.mqtt.basetopic}/{device}/{addr.seg_id:d}/{addr.addr_id:d}"
         )
 
     def _availability(self) -> list[dict[str, str]]:
-        bridge_status = f"{self._config.mqtt.base_topic}/bridge/status"
+        bridge_status = f"{self._config.mqtt.basetopic}/bridge/status"
         return [
             {
                 "topic": bridge_status,
@@ -49,7 +49,7 @@ class DiscoveryPublisher:
         prefix = self._config.homeassistant.prefix
         topic = f"{prefix}/device/{object_id}/config"
         payload["o"] = {
-            "name": self._config.mqtt.base_topic,
+            "name": self._config.mqtt.basetopic,
             "sw": __version__,
             "url": "https://github.com/alengwenus/lcn2mqtt",
         }
@@ -68,7 +68,7 @@ class DiscoveryPublisher:
         addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
         for i in range(1, 5):
-            uid = f"{self._config.mqtt.base_topic}_{addr_str}_output{i}"
+            uid = f"{self._config.mqtt.basetopic}_{addr_str}_output{i}"
             cmps[uid] = {
                 "platform": "light",
                 "unique_id": uid,
@@ -88,7 +88,7 @@ class DiscoveryPublisher:
         addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
         for i in range(1, 9):
-            uid = f"{self._config.mqtt.base_topic}_{addr_str}_relay{i}"
+            uid = f"{self._config.mqtt.basetopic}_{addr_str}_relay{i}"
             cmps[uid] = {
                 "platform": "switch",
                 "unique_id": uid,
@@ -107,7 +107,7 @@ class DiscoveryPublisher:
         addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
         for i in range(1, 5):
-            uid = f"{self._config.mqtt.base_topic}_{addr_str}_motor{i}"
+            uid = f"{self._config.mqtt.basetopic}_{addr_str}_motor{i}"
             cmps[uid] = {
                 "platform": "cover",
                 "unique_id": uid,
@@ -135,11 +135,15 @@ class DiscoveryPublisher:
         cmps.update(self._output_components(lcn_addr))
         cmps.update(self._relay_components(lcn_addr))
         cmps.update(self._motor_components(lcn_addr))
+
+        for identifier, cmp in module.homeassistant.switches.items():
+            cmps[identifier] = cmp.discovery_info()
+
         await self._publish_device(
-            f"{self._config.mqtt.base_topic}_{addr_str}",
+            f"{self._config.mqtt.basetopic}_{addr_str}",
             {
                 "dev": {
-                    "identifiers": [f"{self._config.mqtt.base_topic}_{addr_str}"],
+                    "identifiers": [f"{self._config.mqtt.basetopic}_{addr_str}"],
                     "name": display_name,
                     "manufacturer": "Issendorff",
                     "model": module.serials.type.description,
@@ -156,7 +160,7 @@ class DiscoveryPublisher:
 
     async def publish_bridge(self) -> None:
         """Publish a device-discovery entry for the bridge itself."""
-        base = self._config.mqtt.base_topic
+        base = self._config.mqtt.basetopic
         bridge_id = self._bridge_identifier()
         status_uid = f"{bridge_id}_status"
         await self._publish_device(

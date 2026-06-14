@@ -1,13 +1,12 @@
 """Data models for LCN modules."""
 
-from typing import Annotated
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pypck import lcn_defs
-from pypck.lcn_addr import LcnAddr
 from pypck.device import DeviceConnection
+from pypck.lcn_addr import LcnAddr
 
 
 def alias_property(target: str):
@@ -138,7 +137,7 @@ class Module(BaseModel):
     model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
     device_connection: DeviceConnection | None = None
-    address: LcnAddr = Field(..., alias="lcn_addr")
+    address: LcnAddr
     serials: ModuleSerials = Field(default_factory=ModuleSerials)
     name: str = ""
 
