@@ -26,7 +26,7 @@ class DiscoveryPublisher:
     # ---------- helpers ----------
 
     def _bridge_identifier(self) -> str:
-        return f"lcn2mqtt_{self._config.mqtt.base_topic}"
+        return f"{self._config.mqtt.base_topic}_bridge"
 
     def _addr_prefix(self, addr: LcnAddr) -> str:
         device = "group" if addr.is_group else "module"
@@ -63,12 +63,14 @@ class DiscoveryPublisher:
 
     # ---------- component builders ----------
 
-    def _output_components(self, addr_str: str, prefix: str) -> dict[str, Any]:
+    def _output_components(self, lcn_addr: LcnAddr) -> dict[str, Any]:
+        prefix = self._addr_prefix(lcn_addr)
+        addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
         for i in range(1, 5):
-            uid = f"lcn2mqtt_{addr_str}_output{i}"
+            uid = f"{self._config.mqtt.base_topic}_{addr_str}_output{i}"
             cmps[uid] = {
-                "p": "light",
+                "platform": "light",
                 "unique_id": uid,
                 "name": f"Output {i}",
                 "state_topic": f"{prefix}/output/{i}/state",
@@ -81,12 +83,14 @@ class DiscoveryPublisher:
             }
         return cmps
 
-    def _relay_components(self, addr_str: str, prefix: str) -> dict[str, Any]:
+    def _relay_components(self, lcn_addr: LcnAddr) -> dict[str, Any]:
+        prefix = self._addr_prefix(lcn_addr)
+        addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
         for i in range(1, 9):
-            uid = f"lcn2mqtt_{addr_str}_relay{i}"
+            uid = f"{self._config.mqtt.base_topic}_{addr_str}_relay{i}"
             cmps[uid] = {
-                "p": "switch",
+                "platform": "switch",
                 "unique_id": uid,
                 "name": f"Relay {i}",
                 "state_topic": f"{prefix}/relay/{i}/state",
@@ -98,12 +102,14 @@ class DiscoveryPublisher:
             }
         return cmps
 
-    def _motor_components(self, addr_str: str, prefix: str) -> dict[str, Any]:
+    def _motor_components(self, lcn_addr: LcnAddr) -> dict[str, Any]:
+        prefix = self._addr_prefix(lcn_addr)
+        addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
         for i in range(1, 5):
-            uid = f"lcn2mqtt_{addr_str}_motor{i}"
+            uid = f"{self._config.mqtt.base_topic}_{addr_str}_motor{i}"
             cmps[uid] = {
-                "p": "cover",
+                "platform": "cover",
                 "unique_id": uid,
                 "name": f"Motor {i}",
                 "state_topic": f"{prefix}/motor_relays/{i}/state",
@@ -124,17 +130,16 @@ class DiscoveryPublisher:
     async def publish_module(self, lcn_addr: LcnAddr, module: Module) -> None:
         """Publish a device-discovery entry for one LCN module."""
         addr_str = lcn_addr.to_string()
-        prefix = self._addr_prefix(lcn_addr)
         display_name = module.name.strip() if module.name else f"LCN {addr_str.upper()}"
         cmps: dict[str, Any] = {}
-        cmps.update(self._output_components(addr_str, prefix))
-        cmps.update(self._relay_components(addr_str, prefix))
-        cmps.update(self._motor_components(addr_str, prefix))
+        cmps.update(self._output_components(lcn_addr))
+        cmps.update(self._relay_components(lcn_addr))
+        cmps.update(self._motor_components(lcn_addr))
         await self._publish_device(
-            f"lcn2mqtt_{addr_str}",
+            f"{self._config.mqtt.base_topic}_{addr_str}",
             {
                 "dev": {
-                    "identifiers": [f"lcn2mqtt_{addr_str}"],
+                    "identifiers": [f"{self._config.mqtt.base_topic}_{addr_str}"],
                     "name": display_name,
                     "manufacturer": "Issendorff",
                     "model": module.serials.type.description,
@@ -144,7 +149,7 @@ class DiscoveryPublisher:
                     "via_device": self._bridge_identifier(),
                 },
                 "availability": self._availability(),
-                "cmps": cmps,
+                "components": cmps,
             },
         )
         _LOG.info("Discovery: module published: %s", addr_str)
@@ -164,9 +169,9 @@ class DiscoveryPublisher:
                     "model": "LCN2MQTT Bridge",
                 },
                 "availability": self._availability(),
-                "cmps": {
+                "components": {
                     status_uid: {
-                        "p": "sensor",
+                        "platform": "sensor",
                         "unique_id": status_uid,
                         "name": "Status",
                         "state_topic": f"{base}/bridge/status",
