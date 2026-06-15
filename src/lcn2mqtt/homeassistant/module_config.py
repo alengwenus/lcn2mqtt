@@ -1,13 +1,11 @@
 """Home Assistant MQTT Discovery configuration for LCN modules."""
 
-import json
 from typing import Any
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    field_validator,
     model_validator,
 )
 from pypck.lcn_addr import LcnAddr
@@ -22,8 +20,8 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
 
     address: LcnAddr = Field(..., exclude=True)
 
-    include: dict[str, list[int]] = {}
-    exclude: dict[str, list[int]] = {}
+    include: set[str] = set()
+    exclude: set[str] = set()
 
     switches: dict[str, SwitchComponent] = Field(default_factory=dict)
 
@@ -37,18 +35,6 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                 component["identifier"] = identifier
 
         return data
-
-    @field_validator("include", "exclude", mode="before")
-    @classmethod
-    def parse_list(cls, value: dict[str, list[int]]) -> dict[str, list[int]]:
-        """Parse comma-separated strings into lists of ints."""
-        result: dict[str, list[int]] = {}
-        for key, val in value.items():
-            if isinstance(val, str):
-                result[key] = json.loads(val.strip("'"))
-            elif isinstance(val, list):
-                result[key] = [int(x) for x in val if isinstance(x, int)]
-        return result
 
     def inject_basetopic(self, basetopic: str) -> None:
         """Inject the global basetopic into component models."""

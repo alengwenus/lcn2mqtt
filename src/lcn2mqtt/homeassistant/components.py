@@ -20,7 +20,6 @@ class BaseComponentModel(BaseModel):
 
     address: LcnAddr = Field(..., exclude=True)
     basetopic: str = Field(default="lcn2mqtt", exclude=True)
-    target: OutputPort | RelayPort = Field(..., exclude=True)
     identifier: str = Field(..., exclude=True)
 
     unique_id: str | None = Field(default=None, alias="uniq_id")
@@ -35,20 +34,19 @@ class BaseComponentModel(BaseModel):
             f"{self.basetopic}/module/{self.address.seg_id:d}/{self.address.addr_id:d}"
         )
 
-    @field_validator("target", mode="before")
-    @classmethod
-    def lower(cls, value: Any) -> Any:
-        """Convert string fields to lowercase."""
-        if isinstance(value, str):
-            return value.lower()
-        return value
+    # @field_validator("*", mode="before")
+    # @classmethod
+    # def lower(cls, value: Any) -> Any:
+    #     """Convert string fields to lowercase."""
+    #     if isinstance(value, str):
+    #         return value.lower()
+    #     return value
 
     @model_validator(mode="after")
     def set_name(self) -> "BaseComponentModel":
         """Set default name if not provided."""
         if self.name is None:
-            idx = int(self.target.value) + 1
-            self.name = f"{self.target.name.capitalize()[:-1]} {idx}"
+            self.name = self.identifier.replace("_", " ").capitalize()
         return self
 
     def set_basetopic(self, basetopic: str) -> None:
@@ -75,6 +73,8 @@ class BaseComponentModel(BaseModel):
 
 class SwitchComponent(BaseComponentModel):
     """Home Assistant switch component."""
+
+    target: OutputPort | RelayPort = Field(..., exclude=True)
 
     state_topic: str | None = None
     command_topic: str | None = None

@@ -15,9 +15,38 @@ from ..module import Module
 
 _LOG = logging.getLogger(__name__)
 
+OUTPUTS = {"output1", "output2", "output3", "output4"}
+RELAYS = {
+    "relay1",
+    "relay2",
+    "relay3",
+    "relay4",
+    "relay5",
+    "relay6",
+    "relay7",
+    "relay8",
+}
+MOTORS = {"motor1", "motor2", "motor3", "motor4"}
+LEDS = {
+    "led1",
+    "led2",
+    "led3",
+    "led4",
+    "led5",
+    "led6",
+    "led7",
+    "led8",
+    "led9",
+    "led10",
+    "led11",
+    "led12",
+}
 
-class DiscoveryPublisher:
-    """Publishes HA MQTT device-discovery messages for LCN modules."""
+STANDARD_COMPONENTS = OUTPUTS | RELAYS
+
+
+class DiscoveryManager:
+    """Handles HA MQTT device-discovery messages for LCN modules."""
 
     def __init__(self, config: AppConfig, mqtt: aiomqtt.Client) -> None:
         self._config = config
@@ -44,6 +73,19 @@ class DiscoveryPublisher:
             }
         ]
 
+    def _parse_addr_from_topic(self, topic: str) -> LcnAddr:
+        """Parse the segment, address, and group flag from an MQTT topic, or return None if it can't be parsed."""
+        parts = topic.lower().split("/")
+
+        # expected topic format: <base>/<m|g>/<seg>/<addr>/<handler>/<subtopics...>
+        try:
+            is_group = parts[1] == "group"
+            seg = int(parts[2])
+            addr = int(parts[3])
+        except (IndexError, ValueError):
+            raise ValueError("Topic does not match expected format")
+        return LcnAddr(seg, addr, is_group)
+
     async def _publish_device(self, object_id: str, payload: dict[str, Any]) -> None:
         """Publish a device discovery payload (component=device)."""
         prefix = self._config.homeassistant.prefix
@@ -53,6 +95,14 @@ class DiscoveryPublisher:
             "sw": __version__,
             "url": "https://github.com/alengwenus/lcn2mqtt",
         }
+
+        await self._mqtt.publish(
+            topic,
+            payload="",
+            qos=self._config.mqtt.qos,
+            retain=True,
+        )  # publish empty payload to clear retained message first
+
         await self._mqtt.publish(
             topic,
             payload=json.dumps(payload),
@@ -63,38 +113,45 @@ class DiscoveryPublisher:
 
     # ---------- component builders ----------
 
-    def _output_components(self, lcn_addr: LcnAddr) -> dict[str, Any]:
+    def _output_components(
+        self, lcn_addr: LcnAddr, include: set[str] = OUTPUTS
+    ) -> dict[str, Any]:
         prefix = self._addr_prefix(lcn_addr)
         addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
-        for i in range(1, 5):
-            uid = f"{self._config.mqtt.basetopic}_{addr_str}_output{i}"
+
+        for idx, output in enumerate(include & OUTPUTS, start=1):
+            # for i in range(1, 5):
+            uid = f"{self._config.mqtt.basetopic}_{addr_str}_{output}"
             cmps[uid] = {
                 "platform": "light",
                 "unique_id": uid,
-                "name": f"Output {i}",
-                "state_topic": f"{prefix}/output/{i}/state",
-                "command_topic": f"{prefix}/output/{i}/set",
-                "brightness_state_topic": (f"{prefix}/output/{i}/brightness"),
-                "brightness_command_topic": (f"{prefix}/output/{i}/set_brightness"),
+                "name": f"Output {idx}",
+                "state_topic": f"{prefix}/output/{idx}/state",
+                "command_topic": f"{prefix}/output/{idx}/set",
+                "brightness_state_topic": (f"{prefix}/output/{idx}/brightness"),
+                "brightness_command_topic": (f"{prefix}/output/{idx}/set_brightness"),
                 "brightness_scale": 100,
                 "payload_on": "on",
                 "payload_off": "off",
             }
         return cmps
 
-    def _relay_components(self, lcn_addr: LcnAddr) -> dict[str, Any]:
+    def _relay_components(
+        self, lcn_addr: LcnAddr, include: set[str] = RELAYS
+    ) -> dict[str, Any]:
         prefix = self._addr_prefix(lcn_addr)
         addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
-        for i in range(1, 9):
-            uid = f"{self._config.mqtt.basetopic}_{addr_str}_relay{i}"
+        # for i in range(1, 9):
+        for idx, relay in enumerate(include & RELAYS, start=1):
+            uid = f"{self._config.mqtt.basetopic}_{addr_str}_{relay}"
             cmps[uid] = {
                 "platform": "switch",
                 "unique_id": uid,
-                "name": f"Relay {i}",
-                "state_topic": f"{prefix}/relay/{i}/state",
-                "command_topic": f"{prefix}/relay/{i}/set",
+                "name": f"Relay {idx}",
+                "state_topic": f"{prefix}/relay/{idx}/state",
+                "command_topic": f"{prefix}/relay/{idx}/set",
                 "payload_on": "on",
                 "payload_off": "off",
                 "state_on": "on",
@@ -102,19 +159,21 @@ class DiscoveryPublisher:
             }
         return cmps
 
-    def _motor_components(self, lcn_addr: LcnAddr) -> dict[str, Any]:
+    def _motor_components(
+        self, lcn_addr: LcnAddr, include: set[str] = MOTORS
+    ) -> dict[str, Any]:
         prefix = self._addr_prefix(lcn_addr)
         addr_str = lcn_addr.to_string()
         cmps: dict[str, Any] = {}
-        for i in range(1, 5):
-            uid = f"{self._config.mqtt.basetopic}_{addr_str}_motor{i}"
+        for idx, motor in enumerate(include & MOTORS, start=1):
+            uid = f"{self._config.mqtt.basetopic}_{addr_str}_{motor}"
             cmps[uid] = {
                 "platform": "cover",
                 "unique_id": uid,
-                "name": f"Motor {i}",
-                "state_topic": f"{prefix}/motor_relays/{i}/state",
+                "name": f"Motor {idx}",
+                "state_topic": f"{prefix}/motor_relays/{idx}/state",
                 "value_template": "{{ value_json.state }}",
-                "command_topic": f"{prefix}/motor_relays/{i}/set",
+                "command_topic": f"{prefix}/motor_relays/{idx}/set",
                 "payload_open": "open",
                 "payload_close": "close",
                 "payload_stop": "stop",
@@ -131,10 +190,15 @@ class DiscoveryPublisher:
         """Publish a device-discovery entry for one LCN module."""
         addr_str = lcn_addr.to_string()
         display_name = module.name.strip() if module.name else f"LCN {addr_str.upper()}"
+
+        include = (
+            module.homeassistant.include or STANDARD_COMPONENTS
+        ) - module.homeassistant.exclude
+
         cmps: dict[str, Any] = {}
-        cmps.update(self._output_components(lcn_addr))
-        cmps.update(self._relay_components(lcn_addr))
-        cmps.update(self._motor_components(lcn_addr))
+        cmps.update(self._output_components(lcn_addr, include))
+        cmps.update(self._relay_components(lcn_addr, include))
+        cmps.update(self._motor_components(lcn_addr, include))
 
         for identifier, cmp in module.homeassistant.switches.items():
             cmps[identifier] = cmp.discovery_info()

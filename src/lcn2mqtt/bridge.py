@@ -22,7 +22,7 @@ from .handlers import (
     ThresholdHandler,
     VariableHandler,
 )
-from .homeassistant.discovery import DiscoveryPublisher
+from .homeassistant.discovery import DiscoveryManager
 from .module import Module
 
 _LOG = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ class Bridge:
         self._pchk: PchkConnectionManager | None = None
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
-        self._discovery: DiscoveryPublisher | None = None
+        self._discovery: DiscoveryManager | None = None
         self._output_handler = OutputHandler(self._publish)
         self._relay_handler = RelayHandler(self._publish)
         self._motor_relay_handler = MotorRelayHandler(self._publish)
@@ -97,9 +97,9 @@ class Bridge:
                 retain=True,
             )
 
-            discovery: DiscoveryPublisher | None = None
+            discovery: DiscoveryManager | None = None
             if self.config.homeassistant.enabled:
-                discovery = DiscoveryPublisher(self.config, mqtt)
+                discovery = DiscoveryManager(self.config, mqtt)
                 self._discovery = discovery
                 await discovery.publish_bridge()
 
@@ -139,9 +139,15 @@ class Bridge:
 
     async def _subscribe_command_topics(self, mqtt: aiomqtt.Client) -> None:
         """Subscribe to MQTT command topics."""
-        topic = f"{self._base_topic()}/#"
-        await mqtt.subscribe(topic, qos=self.config.mqtt.qos)
-        _LOG.info("Subscribed to %s", topic)
+        lcn2mqtt_topic = f"{self._base_topic()}/#"
+        await mqtt.subscribe(lcn2mqtt_topic, qos=self.config.mqtt.qos)
+        _LOG.info("Subscribed to %s", lcn2mqtt_topic)
+
+        if self.config.homeassistant.enabled:
+            prefix = self.config.homeassistant.prefix
+            discovery_topic = f"{prefix}/device/+/config"
+            await mqtt.subscribe(discovery_topic)
+            _LOG.debug("Subscribed to discovery topic: %s", discovery_topic)
 
     async def _publish(self, topic: str, payload: Any) -> None:
         """Publish a message to an MQTT topic."""
