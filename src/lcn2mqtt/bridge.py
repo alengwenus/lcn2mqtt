@@ -210,7 +210,7 @@ class Bridge:
                 "Auto-registering new LCN module %s",
                 lcn_addr.to_string(),
             )
-            self.modules[lcn_addr] = Module(address=lcn_addr)
+            self.modules[lcn_addr] = self.config.create_device_config(lcn_addr)
             publish = True
 
         module = self.modules[lcn_addr]

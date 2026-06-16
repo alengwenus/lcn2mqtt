@@ -6,7 +6,14 @@ import logging
 import os
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -47,9 +54,11 @@ class DeviceConfig(Module):
     @classmethod
     def configure_homeassistant(cls, data: Any) -> Any:
         if "homeassistant" not in data or not isinstance(data["homeassistant"], dict):
-            return data
+            data["homeassistant"] = {}
 
-        data["homeassistant"]["address"] = data["address"]
+        data["homeassistant"] = HomeAssistantModuleDiscoveryConfig(
+            address=data["address"]
+        )
         return data
 
 
@@ -68,12 +77,18 @@ class LcnConfig(BaseModel):
 class MqttConfig(BaseModel):
     """MQTT connection and topic configuration."""
 
-    basetopic: str = "lcn2mqtt"
     host: str
     port: int = 1883
     username: str | None = None
     password: str | None = None
     qos: int = 0
+
+    _basetopic: str = PrivateAttr(default="lcn2mqtt")
+
+    @property
+    def basetopic(self) -> str:
+        """MQTT topic prefix for all components."""
+        return self._basetopic
 
 
 class DiscoveryConfig(BaseModel):
@@ -96,6 +111,7 @@ class AppConfig(BaseSettings):
         extra="ignore",
     )
 
+    identifier: str = "lcn2mqtt"
     log_level: str = "INFO"
     lcn: LcnConfig = Field(default_factory=LcnConfig)
     mqtt: MqttConfig = Field(default_factory=MqttConfig)
@@ -115,16 +131,30 @@ class AppConfig(BaseSettings):
         """Convert log level to uppercase."""
         return v.upper()
 
+    @model_validator(mode="after")
+    def set_basetopic(self) -> AppConfig:
+        """Inject the global basetopic into device configs."""
+        self.mqtt._basetopic = self.identifier
+        for device in self.devices.values():
+            device.homeassistant.inject_basetopic(self.identifier)
+        return self
+
     @model_validator(mode="before")
     @classmethod
     def to_lcn_addr(cls, data: Any) -> Any:
-        if "devices" not in data:
-            return data
+        if "devices" not in data or not isinstance(data["devices"], dict):
+            data["devices"] = {}
 
         devices = {}
 
         for addr_str, device in data["devices"].items():
             lcn_addr = LcnAddr.from_string(addr_str)
+            if device is None:
+                device = {}
+
+            device["address"] = lcn_addr
+            devices[lcn_addr] = device
+
             flattened = flatten_with_values(
                 {
                     key: value
@@ -140,16 +170,21 @@ class AppConfig(BaseSettings):
                     value,
                 )
 
-            device["address"] = lcn_addr
-            devices[lcn_addr] = device
-
         data["devices"] = devices
         return data
 
-    def model_post_init(self, __context):
-        """Inject global settings into device configs."""
-        for device in self.devices.values():
-            device.homeassistant.inject_basetopic(self.mqtt.basetopic)
+    def create_device_config(self, lcn_addr: LcnAddr) -> DeviceConfig:
+        """Create a DeviceConfig for the given LCN address, applying overrides."""
+        device_config = self.devices.get(lcn_addr)
+        if device_config is not None:
+            raise ValueError(f"Device config for {lcn_addr.to_string()} already exists")
+
+        homeassistant_config = HomeAssistantModuleDiscoveryConfig(address=lcn_addr)
+        device_config = DeviceConfig(
+            address=lcn_addr, homeassistant=homeassistant_config
+        )
+
+        return device_config
 
     @classmethod
     def settings_customise_sources(
@@ -182,6 +217,7 @@ if __name__ == "__main__":
         os.path.expanduser("~/workspaces/lcn2mqtt/data/configuration.yaml")
     )
     print(config.model_dump_json(indent=2))
+    print(config.mqtt.basetopic)
     # for addr, device in config.devices.items():
     #     print(device)
     #     print(device.module_overrides)

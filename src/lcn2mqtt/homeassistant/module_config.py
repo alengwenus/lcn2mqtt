@@ -20,8 +20,8 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
 
     address: LcnAddr = Field(..., exclude=True)
 
-    include: set[str] = set()
-    exclude: set[str] = set()
+    include: set[str] = Field(default_factory=set)
+    exclude: set[str] = Field(default_factory=set)
 
     switches: dict[str, SwitchComponent] = Field(default_factory=dict)
 
