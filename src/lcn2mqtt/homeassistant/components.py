@@ -34,14 +34,6 @@ class BaseComponentModel(BaseModel):
             f"{self.basetopic}/module/{self.address.seg_id:d}/{self.address.addr_id:d}"
         )
 
-    # @field_validator("*", mode="before")
-    # @classmethod
-    # def lower(cls, value: Any) -> Any:
-    #     """Convert string fields to lowercase."""
-    #     if isinstance(value, str):
-    #         return value.lower()
-    #     return value
-
     @model_validator(mode="after")
     def set_name(self) -> "BaseComponentModel":
         """Set default name if not provided."""
