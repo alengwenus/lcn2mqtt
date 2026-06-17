@@ -1,5 +1,6 @@
 """Home Assistant MQTT Discovery configuration for LCN modules."""
 
+import fnmatch
 from typing import Any
 
 from pydantic import (
@@ -11,7 +12,6 @@ from pydantic import (
 from pypck.lcn_addr import LcnAddr
 
 from .components import SwitchComponent, LightComponent
-
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
 RELAYS = {
@@ -42,6 +42,8 @@ LEDS = {
 
 STANDARD_COMPONENTS = OUTPUTS | RELAYS
 
+ALL_COMPONENTS = OUTPUTS | RELAYS | MOTORS | LEDS
+
 PLATFORMS = ("switches", "lights")
 
 
@@ -66,11 +68,22 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
             if platform not in data or not isinstance(data[platform], dict):
                 data[platform] = {}
 
-        # Setup include/exclude components
-        take_cmps = set(data.get("include", STANDARD_COMPONENTS)) - set(
-            data.get("exclude", set())
-        )
+        # Process wildcard entries in include/exclude
+        include = {
+            cmp
+            for include_cmp in data.get("include", STANDARD_COMPONENTS)
+            for cmp in ALL_COMPONENTS
+            if fnmatch.fnmatch(cmp, include_cmp)
+        }
+        exclude = {
+            cmp
+            for exclude_cmp in data.get("exclude", set())
+            for cmp in ALL_COMPONENTS
+            if fnmatch.fnmatch(cmp, exclude_cmp)
+        }
+        take_cmps = include - exclude
 
+        # Automatically set up include/exclude components
         for cmp in take_cmps:
             if cmp in RELAYS:
                 identifier = target = cmp
@@ -83,7 +96,7 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                     "target": target,
                 }
 
-        # Setup manually defined components
+        # Set properties of manual and automatically defined components
         for platform in PLATFORMS:
             for identifier, component in data.get(platform, {}).items():
                 if isinstance(component, dict):
