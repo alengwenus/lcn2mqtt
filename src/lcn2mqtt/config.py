@@ -56,9 +56,7 @@ class DeviceConfig(Module):
         if "homeassistant" not in data or not isinstance(data["homeassistant"], dict):
             data["homeassistant"] = {}
 
-        data["homeassistant"] = HomeAssistantModuleDiscoveryConfig(
-            address=data["address"]
-        )
+        data["homeassistant"].setdefault("address", data["address"])
         return data
 
 
@@ -218,6 +216,7 @@ if __name__ == "__main__":
     )
     print(config.model_dump_json(indent=2))
     print(config.mqtt.basetopic)
+    print(type(list(config.devices.values())[0].homeassistant))
     # for addr, device in config.devices.items():
     #     print(device)
     #     print(device.module_overrides)
