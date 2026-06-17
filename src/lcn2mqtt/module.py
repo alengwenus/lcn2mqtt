@@ -134,7 +134,7 @@ class Motor(BaseModel):
 class Module(BaseModel):
     """Model for an LCN module."""
 
-    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     device_connection: DeviceConnection | None = None
     address: LcnAddr

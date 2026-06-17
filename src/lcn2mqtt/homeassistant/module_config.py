@@ -12,11 +12,11 @@ from pydantic import (
 from pypck.lcn_addr import LcnAddr
 
 from .components import (
-    SwitchComponent,
     LightComponent,
-    SensorComponent,
     NumberComponent,
     SelectComponent,
+    SensorComponent,
+    SwitchComponent,
 )
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
@@ -188,3 +188,14 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
         for platform in PLATFORMS:
             for component in getattr(self, platform).values():
                 component.set_basetopic(basetopic)
+
+    @property
+    def components(self) -> dict[str, Any]:
+        """Return a dict of all components by platform."""
+        return {
+            **self.switches,
+            **self.lights,
+            **self.sensors,
+            **self.numbers,
+            **self.selects,
+        }
