@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pypck.lcn_addr import LcnAddr
-from pypck.lcn_defs import OutputPort, RelayPort, Var
+from pypck.lcn_defs import OutputPort, RelayPort, Var, LedPort
 
 
 def set_if_none(value: Any, default: Any) -> Any:
@@ -139,7 +139,7 @@ class LightComponent(SwitchComponent):
 class SensorComponent(BaseComponentModel):
     """Home Assistant sensor component."""
 
-    source: Var = Field(..., exclude=True)
+    source: Var | LedPort = Field(..., exclude=True)
 
     state_topic: str | None = None
 
@@ -152,6 +152,8 @@ class SensorComponent(BaseComponentModel):
         if isinstance(value, str):
             if value.upper() in Var.__members__:
                 value = Var[value.upper()]
+            elif value.upper() in LedPort.__members__:
+                value = LedPort[value.upper()]
             else:
                 raise ValueError(f"Invalid source '{value}'.")
         return value
@@ -173,6 +175,11 @@ class SensorComponent(BaseComponentModel):
             idx = Var.to_thrs_id(self.source) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/threshold/{register}/{idx}/state"
+            )
+        elif isinstance(self.source, LedPort):
+            idx = int(self.source.value) + 1
+            self.state_topic = set_if_none(
+                self.state_topic, f"{self.prefix}/led/{idx}/state"
             )
 
 
