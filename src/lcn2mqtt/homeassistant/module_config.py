@@ -10,7 +10,7 @@ from pydantic import (
 )
 from pypck.lcn_addr import LcnAddr
 
-from .components import SwitchComponent
+from .components import SwitchComponent, LightComponent
 
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
@@ -42,6 +42,8 @@ LEDS = {
 
 STANDARD_COMPONENTS = OUTPUTS | RELAYS
 
+PLATFORMS = ("switches", "lights")
+
 
 class HomeAssistantModuleDiscoveryConfig(BaseModel):
     """Home Assistant discovery configuration for a single LCN module/device."""
@@ -54,12 +56,13 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
     exclude: set[str] = Field(default_factory=set)
 
     switches: dict[str, SwitchComponent] = Field(default_factory=dict)
+    lights: dict[str, LightComponent] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
     def setup_components(cls, data: dict[str, Any]) -> dict[str, Any]:
         """Set up component models from the config."""
-        for platform in ["switches"]:
+        for platform in PLATFORMS:
             if platform not in data or not isinstance(data[platform], dict):
                 data[platform] = {}
 
@@ -74,16 +77,23 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                 data["switches"][identifier] = {
                     "target": target,
                 }
+            elif cmp in OUTPUTS:
+                identifier = target = cmp
+                data["lights"][identifier] = {
+                    "target": target,
+                }
 
         # Setup manually defined components
-        for identifier, component in data.get("switches", {}).items():
-            if isinstance(component, dict):
-                component["address"] = data["address"]
-                component["identifier"] = identifier
+        for platform in PLATFORMS:
+            for identifier, component in data.get(platform, {}).items():
+                if isinstance(component, dict):
+                    component["address"] = data["address"]
+                    component["identifier"] = identifier
 
         return data
 
     def inject_basetopic(self, basetopic: str) -> None:
         """Inject the global basetopic into component models."""
-        for component in self.switches.values():
-            component.set_basetopic(basetopic)
+        for platform in PLATFORMS:
+            for component in getattr(self, platform).values():
+                component.set_basetopic(basetopic)

@@ -75,7 +75,7 @@ class SwitchComponent(BaseComponentModel):
     state_on: str = "on"
     state_off: str = "off"
 
-    platform: Literal["switch"] = Field(default="switch", alias="p")
+    platform: Literal["switch"] = Field(default="switch", alias="p")  # type: ignore[assignment]
 
     @field_validator("target", mode="before")
     @classmethod
@@ -107,6 +107,32 @@ class SwitchComponent(BaseComponentModel):
             self.command_topic = set_if_none(
                 self.command_topic, f"{self.prefix}/output/{idx}/set"
             )
+
+
+class LightComponent(SwitchComponent):
+    """Home Assistant light component."""
+
+    brightness_state_topic: str | None = Field(default=None)
+    brightness_command_topic: str | None = Field(default=None)
+    brightness_scale: int | None = Field(default=None)
+
+    platform: Literal["light"] = Field(default="light", alias="p")  # type: ignore[assignment]
+
+    def set_topics(self):
+        """Set default topics."""
+        super().set_topics()
+
+        if not isinstance(self.target, OutputPort):
+            return
+
+        idx = int(self.target.value) + 1
+        self.brightness_state_topic = set_if_none(
+            self.brightness_state_topic, f"{self.prefix}/output/{idx}/brightness"
+        )
+        self.brightness_command_topic = set_if_none(
+            self.brightness_command_topic, f"{self.prefix}/output/{idx}/set_brightness"
+        )
+        self.brightness_scale = set_if_none(self.brightness_scale, 100)
 
 
 if __name__ == "__main__":
