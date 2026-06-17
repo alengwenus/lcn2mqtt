@@ -11,7 +11,7 @@ from pydantic import (
 )
 from pypck.lcn_addr import LcnAddr
 
-from .components import SwitchComponent, LightComponent
+from .components import SwitchComponent, LightComponent, SensorComponent
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
 RELAYS = {
@@ -39,12 +39,71 @@ LEDS = {
     "led11",
     "led12",
 }
+VARS = {
+    "var1",
+    "var2",
+    "var3",
+    "var4",
+    "var5",
+    "var6",
+    "var7",
+    "var8",
+    "var9",
+    "var10",
+    "var11",
+    "var12",
+}
+VARS_OLD = {
+    "tvar",
+    "r1var",
+    "r2var",
+}
+SETPOINTS = {
+    "setpoint1",
+    "setpoint2",
+}
+THRESHOLDS = {
+    "thrs1",
+    "thrs2",
+    "thrs3",
+    "thrs4",
+    "thrs2_1",
+    "thrs2_2",
+    "thrs2_3",
+    "thrs2_4",
+    "thrs3_1",
+    "thrs3_2",
+    "thrs3_3",
+    "thrs3_4",
+    "thrs4_1",
+    "thrs4_2",
+    "thrs4_3",
+    "thrs4_4",
+}
+THRESHOLDS_OLD = {
+    "thrs1",
+    "thrs2",
+    "thrs3",
+    "thrs4",
+    "thrs5",
+}
+
 
 STANDARD_COMPONENTS = OUTPUTS | RELAYS
 
-ALL_COMPONENTS = OUTPUTS | RELAYS | MOTORS | LEDS
+ALL_COMPONENTS = (
+    OUTPUTS
+    | RELAYS
+    | MOTORS
+    | LEDS
+    | VARS
+    | VARS_OLD
+    | SETPOINTS
+    | THRESHOLDS
+    | THRESHOLDS_OLD
+)
 
-PLATFORMS = ("switches", "lights")
+PLATFORMS = ("switches", "lights", "sensors")
 
 
 class HomeAssistantModuleDiscoveryConfig(BaseModel):
@@ -59,6 +118,7 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
 
     switches: dict[str, SwitchComponent] = Field(default_factory=dict)
     lights: dict[str, LightComponent] = Field(default_factory=dict)
+    sensors: dict[str, SensorComponent] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -94,6 +154,11 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                 identifier = target = cmp
                 data["lights"][identifier] = {
                     "target": target,
+                }
+            elif cmp in VARS | VARS_OLD | SETPOINTS | THRESHOLDS | THRESHOLDS_OLD:
+                identifier = source = cmp
+                data["sensors"][identifier] = {
+                    "source": source,
                 }
 
         # Set properties of manual and automatically defined components

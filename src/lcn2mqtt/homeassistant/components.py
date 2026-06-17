@@ -1,11 +1,12 @@
 """Models for components."""
 
 from abc import abstractmethod
+from itertools import chain
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pypck.lcn_addr import LcnAddr
-from pypck.lcn_defs import OutputPort, RelayPort
+from pypck.lcn_defs import OutputPort, RelayPort, Var
 
 
 def set_if_none(value: Any, default: Any) -> Any:
@@ -133,6 +134,46 @@ class LightComponent(SwitchComponent):
             self.brightness_command_topic, f"{self.prefix}/output/{idx}/set_brightness"
         )
         self.brightness_scale = set_if_none(self.brightness_scale, 100)
+
+
+class SensorComponent(BaseComponentModel):
+    """Home Assistant sensor component."""
+
+    source: Var = Field(..., exclude=True)
+
+    state_topic: str | None = None
+
+    platform: Literal["sensor"] = Field(default="sensor", alias="p")  # type: ignore[assignment]
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def validate_source(cls, value: Any) -> Any:
+        """Validate the source."""
+        if isinstance(value, str):
+            if value.upper() in Var.__members__:
+                value = Var[value.upper()]
+            else:
+                raise ValueError(f"Invalid source '{value}'.")
+        return value
+
+    def set_topics(self):
+        """Set default topics."""
+        if self.source in set(Var.variables()):
+            idx = Var.to_var_id(self.source) + 1
+            self.state_topic = set_if_none(
+                self.state_topic, f"{self.prefix}/variable/{idx}/state"
+            )
+        elif self.source in set(Var.set_points()):
+            idx = Var.to_set_point_id(self.source) + 1
+            self.state_topic = set_if_none(
+                self.state_topic, f"{self.prefix}/setpoint/{idx}/state"
+            )
+        elif self.source in set(chain.from_iterable(Var.thresholds())):
+            register = Var.to_thrs_register_id(self.source) + 1
+            idx = Var.to_thrs_id(self.source) + 1
+            self.state_topic = set_if_none(
+                self.state_topic, f"{self.prefix}/threshold/{register}/{idx}/state"
+            )
 
 
 if __name__ == "__main__":
