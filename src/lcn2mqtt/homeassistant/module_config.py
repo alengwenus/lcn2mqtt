@@ -11,7 +11,13 @@ from pydantic import (
 )
 from pypck.lcn_addr import LcnAddr
 
-from .components import SwitchComponent, LightComponent, SensorComponent
+from .components import (
+    SwitchComponent,
+    LightComponent,
+    SensorComponent,
+    NumberComponent,
+    SelectComponent,
+)
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
 RELAYS = {
@@ -103,7 +109,7 @@ ALL_COMPONENTS = (
     | THRESHOLDS_OLD
 )
 
-PLATFORMS = ("switches", "lights", "sensors")
+PLATFORMS = ("switches", "lights", "sensors", "numbers", "selects")
 
 
 class HomeAssistantModuleDiscoveryConfig(BaseModel):
@@ -119,6 +125,8 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
     switches: dict[str, SwitchComponent] = Field(default_factory=dict)
     lights: dict[str, LightComponent] = Field(default_factory=dict)
     sensors: dict[str, SensorComponent] = Field(default_factory=dict)
+    numbers: dict[str, NumberComponent] = Field(default_factory=dict)
+    selects: dict[str, SelectComponent] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -156,9 +164,14 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                     "target": target,
                 }
             elif cmp in VARS | VARS_OLD | SETPOINTS | THRESHOLDS | THRESHOLDS_OLD:
-                identifier = source = cmp
-                data["sensors"][identifier] = {
-                    "source": source,
+                identifier = target = cmp
+                data["numbers"][identifier] = {
+                    "target": target,
+                }
+            elif cmp in LEDS:
+                identifier = target = cmp
+                data["selects"][identifier] = {
+                    "target": target,
                 }
 
         # Set properties of manual and automatically defined components
