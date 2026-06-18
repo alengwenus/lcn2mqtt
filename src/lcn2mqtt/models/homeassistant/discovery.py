@@ -20,6 +20,7 @@ from .components import (
     CoverComponent,
     ClimateComponent,
 )
+from ...helpers import normalize_def_names
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
 RELAYS = {
@@ -152,13 +153,13 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
             cmp
             for include_cmp in data.get("include", STANDARD_COMPONENTS)
             for cmp in ALL_COMPONENTS
-            if fnmatch.fnmatch(cmp, include_cmp)
+            if fnmatch.fnmatch(cmp, normalize_def_names(include_cmp))
         }
         exclude = {
             cmp
             for exclude_cmp in data.get("exclude", set())
             for cmp in ALL_COMPONENTS
-            if fnmatch.fnmatch(cmp, exclude_cmp)
+            if fnmatch.fnmatch(cmp, normalize_def_names(exclude_cmp))
         }
         take_cmps = include - exclude
 
