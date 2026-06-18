@@ -240,7 +240,7 @@ class SelectComponent(BaseComponentModel):
 
     state_topic: str | None = None
     command_topic: str | None = None
-    options: list[str] | None = None
+    options: list[str] = [state.name.lower() for state in lcn_defs.LedStatus]
 
     platform: Literal["select"] = Field(default="select", alias="p")  # type: ignore[assignment]
 
@@ -264,9 +264,6 @@ class SelectComponent(BaseComponentModel):
             )
             self.command_topic = set_if_none(
                 self.command_topic, f"{self.prefix}/led/{idx}/set"
-            )
-            self.options = set_if_none(
-                self.options, [state.name.lower() for state in lcn_defs.LedStatus]
             )
 
 
@@ -301,6 +298,79 @@ class CoverComponent(BaseComponentModel):
             self.command_topic = set_if_none(
                 self.command_topic, f"{self.prefix}/motor/{idx}/set"
             )
+
+
+class ClimateComponent(BaseComponentModel):
+    """Home Assistant climate component."""
+
+    temperature: lcn_defs.Var = Field(..., exclude=True)
+    current_temperature: lcn_defs.Var = Field(..., exclude=True)
+
+    temperature_state_topic: str | None = None
+    temperature_command_topic: str | None = None
+    current_temperature_topic: str | None = None
+    mode_state_topic: str | None = None
+    mode_command_topic: str | None = None
+    mode_command_template: str = '{{ value if value=="off" else "on" }}'
+    mode_state_template: str = '{{ "off" if value=="off" else "heat" }}'
+    modes: list[str] = ["off", "heat"]
+
+    platform: Literal["climate"] = Field(default="climate", alias="p")  # type: ignore[assignment]
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_temperature(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate the temperature and current_temperature targets."""
+        for field in ["temperature", "current_temperature"]:
+            if field not in data:
+                raise ValueError(f"'{field}' is required for climate components.")
+
+        temperature_str = data["temperature"].upper()
+        current_temperature_str = data["current_temperature"].upper()
+
+        if temperature_str in (setpoint.name for setpoint in lcn_defs.Var.set_points()):
+            data["temperature"] = lcn_defs.Var[temperature_str]
+        else:
+            raise ValueError(f"Invalid temperature '{temperature_str}'.")
+
+        if current_temperature_str in (
+            name
+            for name in lcn_defs.Var.__members__
+            if lcn_defs.Var[name] in lcn_defs.Var.variables()
+        ):
+            data["current_temperature"] = lcn_defs.Var[current_temperature_str]
+        else:
+            raise ValueError(
+                f"Invalid current_temperature '{current_temperature_str}'."
+            )
+
+        return data
+
+    def set_topics(self):
+        """Set default topics."""
+        temperature_idx = lcn_defs.Var.to_set_point_id(self.temperature) + 1
+        self.temperature_state_topic = set_if_none(
+            self.temperature_state_topic,
+            f"{self.prefix}/setpoint/{temperature_idx}/state",
+        )
+        self.temperature_command_topic = set_if_none(
+            self.temperature_command_topic,
+            f"{self.prefix}/setpoint/{temperature_idx}/set",
+        )
+
+        current_temperature_idx = lcn_defs.Var.to_var_id(self.current_temperature) + 1
+        self.current_temperature_topic = set_if_none(
+            self.current_temperature_topic,
+            f"{self.prefix}/variable/{current_temperature_idx}/state",
+        )
+
+        mode_idx = temperature_idx
+        self.mode_state_topic = set_if_none(
+            self.mode_state_topic, f"{self.prefix}/setpoint/{mode_idx}/locked"
+        )
+        self.mode_command_topic = set_if_none(
+            self.mode_command_topic, f"{self.prefix}/setpoint/{mode_idx}/lock"
+        )
 
 
 if __name__ == "__main__":

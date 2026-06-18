@@ -18,6 +18,7 @@ from .components import (
     SensorComponent,
     SwitchComponent,
     CoverComponent,
+    ClimateComponent,
 )
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
@@ -95,7 +96,6 @@ THRESHOLDS_OLD = {
     "thrs5",
 }
 
-
 STANDARD_COMPONENTS = OUTPUTS | RELAYS
 
 ALL_COMPONENTS = (
@@ -110,13 +110,21 @@ ALL_COMPONENTS = (
     | THRESHOLDS_OLD
 )
 
-PLATFORMS = ("switches", "lights", "sensors", "numbers", "selects", "covers")
+PLATFORMS = (
+    "switches",
+    "lights",
+    "sensors",
+    "numbers",
+    "selects",
+    "covers",
+    "climates",
+)
 
 
 class HomeAssistantModuleDiscoveryConfig(BaseModel):
     """Home Assistant discovery configuration for a single LCN module/device."""
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     address: LcnAddr = Field(..., exclude=True)
 
@@ -129,6 +137,7 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
     numbers: dict[str, NumberComponent] = Field(default_factory=dict)
     selects: dict[str, SelectComponent] = Field(default_factory=dict)
     covers: dict[str, CoverComponent] = Field(default_factory=dict)
+    climates: dict[str, ClimateComponent] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -206,4 +215,5 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
             **self.numbers,
             **self.selects,
             **self.covers,
+            **self.climates,
         }
