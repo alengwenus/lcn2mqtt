@@ -22,8 +22,10 @@ from pydantic_settings import (
 )
 from pypck.lcn_addr import LcnAddr
 
-from lcn2mqtt.homeassistant.module_config import HomeAssistantModuleDiscoveryConfig
-from lcn2mqtt.module import Module
+from lcn2mqtt.models.homeassistant.discovery import (
+    HomeAssistantModuleDiscoveryConfig,
+)
+from lcn2mqtt.models.module import Module
 
 _LOG = logging.getLogger(__name__)
 

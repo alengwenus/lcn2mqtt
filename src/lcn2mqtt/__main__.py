@@ -7,7 +7,7 @@ import logging
 import signal
 
 from .bridge import Bridge
-from .config import load_config
+from .models.config import load_config
 
 
 def _setup_logging(level: str) -> logging.Logger:

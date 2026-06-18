@@ -9,9 +9,10 @@ from typing import Any
 import aiomqtt
 from pypck.lcn_addr import LcnAddr
 
-from .. import __version__
-from ..config import AppConfig
-from ..module import Module
+from ..models.config import AppConfig
+from ..models.module import Module
+
+from ..lcn2mqtt import __version__
 
 _LOG = logging.getLogger(__name__)
 

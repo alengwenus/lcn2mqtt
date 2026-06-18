@@ -9,7 +9,7 @@ from itertools import chain
 from pypck import inputs, lcn_defs
 from pypck.device import DeviceConnection
 
-from ..module import Module
+from ..models.module import Module
 
 _LOG = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from pypck import inputs, lcn_defs
 from pypck.device import DeviceConnection
 
-from ..module import Module, Output, OutputState
+from ..models.module import Module, Output, OutputState
 
 _LOG = logging.getLogger(__name__)
 

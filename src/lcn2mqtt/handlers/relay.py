@@ -9,7 +9,7 @@ from typing import Any
 from pypck import inputs, lcn_defs
 from pypck.device import DeviceConnection
 
-from ..module import Module, RelayState
+from ..models.module import Module, RelayState
 
 _LOG = logging.getLogger(__name__)
 
