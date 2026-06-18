@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pypck.lcn_addr import LcnAddr
-from pypck.lcn_defs import OutputPort, RelayPort, Var, LedPort, LedStatus
+from pypck import lcn_defs
 
 
 def set_if_none(value: Any, default: Any) -> Any:
@@ -67,7 +67,7 @@ class BaseComponentModel(BaseModel):
 class SwitchComponent(BaseComponentModel):
     """Home Assistant switch component."""
 
-    target: OutputPort | RelayPort = Field(..., exclude=True)
+    target: lcn_defs.OutputPort | lcn_defs.RelayPort = Field(..., exclude=True)
 
     state_topic: str | None = None
     command_topic: str | None = None
@@ -83,10 +83,10 @@ class SwitchComponent(BaseComponentModel):
     def validate_target(cls, value: Any) -> Any:
         """Validate that target is in the form 'relay1', 'output2', etc."""
         if isinstance(value, str):
-            if value.upper() in RelayPort.__members__:
-                value = RelayPort[value.upper()]
-            elif value.upper() in OutputPort.__members__:
-                value = OutputPort[value.upper()]
+            if value.upper() in lcn_defs.RelayPort.__members__:
+                value = lcn_defs.RelayPort[value.upper()]
+            elif value.upper() in lcn_defs.OutputPort.__members__:
+                value = lcn_defs.OutputPort[value.upper()]
             else:
                 raise ValueError(f"Invalid target '{value}'.")
         return value
@@ -94,14 +94,14 @@ class SwitchComponent(BaseComponentModel):
     def set_topics(self):
         """Set default topics."""
         idx = int(self.target.value) + 1
-        if isinstance(self.target, RelayPort):
+        if isinstance(self.target, lcn_defs.RelayPort):
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/relay/{idx}/state"
             )
             self.command_topic = set_if_none(
                 self.command_topic, f"{self.prefix}/relay/{idx}/set"
             )
-        elif isinstance(self.target, OutputPort):
+        elif isinstance(self.target, lcn_defs.OutputPort):
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/output/{idx}/state"
             )
@@ -123,7 +123,7 @@ class LightComponent(SwitchComponent):
         """Set default topics."""
         super().set_topics()
 
-        if not isinstance(self.target, OutputPort):
+        if not isinstance(self.target, lcn_defs.OutputPort):
             return
 
         idx = int(self.target.value) + 1
@@ -139,7 +139,7 @@ class LightComponent(SwitchComponent):
 class SensorComponent(BaseComponentModel):
     """Home Assistant sensor component."""
 
-    source: Var | LedPort = Field(..., exclude=True)
+    source: lcn_defs.Var | lcn_defs.LedPort = Field(..., exclude=True)
 
     state_topic: str | None = None
 
@@ -150,33 +150,33 @@ class SensorComponent(BaseComponentModel):
     def validate_source(cls, value: Any) -> Any:
         """Validate the source."""
         if isinstance(value, str):
-            if value.upper() in Var.__members__:
-                value = Var[value.upper()]
-            elif value.upper() in LedPort.__members__:
-                value = LedPort[value.upper()]
+            if value.upper() in lcn_defs.Var.__members__:
+                value = lcn_defs.Var[value.upper()]
+            elif value.upper() in lcn_defs.LedPort.__members__:
+                value = lcn_defs.LedPort[value.upper()]
             else:
                 raise ValueError(f"Invalid source '{value}'.")
         return value
 
     def set_topics(self):
         """Set default topics."""
-        if self.source in set(Var.variables()):
-            idx = Var.to_var_id(self.source) + 1
+        if self.source in set(lcn_defs.Var.variables()):
+            idx = lcn_defs.Var.to_var_id(self.source) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/variable/{idx}/state"
             )
-        elif self.source in set(Var.set_points()):
-            idx = Var.to_set_point_id(self.source) + 1
+        elif self.source in set(lcn_defs.Var.set_points()):
+            idx = lcn_defs.Var.to_set_point_id(self.source) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/setpoint/{idx}/state"
             )
-        elif self.source in set(chain.from_iterable(Var.thresholds())):
-            register = Var.to_thrs_register_id(self.source) + 1
-            idx = Var.to_thrs_id(self.source) + 1
+        elif self.source in set(chain.from_iterable(lcn_defs.Var.thresholds())):
+            register = lcn_defs.Var.to_thrs_register_id(self.source) + 1
+            idx = lcn_defs.Var.to_thrs_id(self.source) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/threshold/{register}/{idx}/state"
             )
-        elif isinstance(self.source, LedPort):
+        elif isinstance(self.source, lcn_defs.LedPort):
             idx = int(self.source.value) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/led/{idx}/state"
@@ -186,7 +186,7 @@ class SensorComponent(BaseComponentModel):
 class NumberComponent(BaseComponentModel):
     """Home Assistant number component."""
 
-    target: Var = Field(..., exclude=True)
+    target: lcn_defs.Var = Field(..., exclude=True)
 
     state_topic: str | None = None
     command_topic: str | None = None
@@ -198,33 +198,33 @@ class NumberComponent(BaseComponentModel):
     def validate_target(cls, value: Any) -> Any:
         """Validate the target."""
         if isinstance(value, str):
-            if value.upper() in Var.__members__:
-                value = Var[value.upper()]
+            if value.upper() in lcn_defs.Var.__members__:
+                value = lcn_defs.Var[value.upper()]
             else:
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
     def set_topics(self):
         """Set default topics."""
-        if self.target in set(Var.variables()):
-            idx = Var.to_var_id(self.target) + 1
+        if self.target in set(lcn_defs.Var.variables()):
+            idx = lcn_defs.Var.to_var_id(self.target) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/variable/{idx}/state"
             )
             self.command_topic = set_if_none(
                 self.command_topic, f"{self.prefix}/variable/{idx}/set"
             )
-        elif self.target in set(Var.set_points()):
-            idx = Var.to_set_point_id(self.target) + 1
+        elif self.target in set(lcn_defs.Var.set_points()):
+            idx = lcn_defs.Var.to_set_point_id(self.target) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/setpoint/{idx}/state"
             )
             self.command_topic = set_if_none(
                 self.command_topic, f"{self.prefix}/setpoint/{idx}/set"
             )
-        elif self.target in set(chain.from_iterable(Var.thresholds())):
-            register = Var.to_thrs_register_id(self.target) + 1
-            idx = Var.to_thrs_id(self.target) + 1
+        elif self.target in set(chain.from_iterable(lcn_defs.Var.thresholds())):
+            register = lcn_defs.Var.to_thrs_register_id(self.target) + 1
+            idx = lcn_defs.Var.to_thrs_id(self.target) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/threshold/{register}/{idx}/state"
             )
@@ -236,7 +236,7 @@ class NumberComponent(BaseComponentModel):
 class SelectComponent(BaseComponentModel):
     """Home Assistant select component."""
 
-    target: LedPort = Field(..., exclude=True)
+    target: lcn_defs.LedPort = Field(..., exclude=True)
 
     state_topic: str | None = None
     command_topic: str | None = None
@@ -249,15 +249,15 @@ class SelectComponent(BaseComponentModel):
     def validate_target(cls, value: Any) -> Any:
         """Validate the target."""
         if isinstance(value, str):
-            if value.upper() in LedPort.__members__:
-                value = LedPort[value.upper()]
+            if value.upper() in lcn_defs.LedPort.__members__:
+                value = lcn_defs.LedPort[value.upper()]
             else:
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
     def set_topics(self):
         """Set default topics."""
-        if isinstance(self.target, LedPort):
+        if isinstance(self.target, lcn_defs.LedPort):
             idx = int(self.target.value) + 1
             self.state_topic = set_if_none(
                 self.state_topic, f"{self.prefix}/led/{idx}/state"
@@ -266,7 +266,40 @@ class SelectComponent(BaseComponentModel):
                 self.command_topic, f"{self.prefix}/led/{idx}/set"
             )
             self.options = set_if_none(
-                self.options, [state.name.lower() for state in LedStatus]
+                self.options, [state.name.lower() for state in lcn_defs.LedStatus]
+            )
+
+
+class CoverComponent(BaseComponentModel):
+    """Home Assistant cover component."""
+
+    target: lcn_defs.MotorPort = Field(..., exclude=True)
+
+    state_topic: str | None = None
+    command_topic: str | None = None
+
+    platform: Literal["cover"] = Field(default="cover", alias="p")  # type: ignore[assignment]
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def validate_target(cls, value: Any) -> Any:
+        """Validate the target."""
+        if isinstance(value, str):
+            if value.upper() in lcn_defs.MotorPort.__members__:
+                value = lcn_defs.MotorPort[value.upper()]
+            else:
+                raise ValueError(f"Invalid target '{value}'.")
+        return value
+
+    def set_topics(self):
+        """Set default topics."""
+        if isinstance(self.target, lcn_defs.MotorPort):
+            idx = int(self.target.value) + 1
+            self.state_topic = set_if_none(
+                self.state_topic, f"{self.prefix}/motor/{idx}/state"
+            )
+            self.command_topic = set_if_none(
+                self.command_topic, f"{self.prefix}/motor/{idx}/set"
             )
 
 

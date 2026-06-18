@@ -17,6 +17,7 @@ from .components import (
     SelectComponent,
     SensorComponent,
     SwitchComponent,
+    CoverComponent,
 )
 
 OUTPUTS = {"output1", "output2", "output3", "output4"}
@@ -109,7 +110,7 @@ ALL_COMPONENTS = (
     | THRESHOLDS_OLD
 )
 
-PLATFORMS = ("switches", "lights", "sensors", "numbers", "selects")
+PLATFORMS = ("switches", "lights", "sensors", "numbers", "selects", "covers")
 
 
 class HomeAssistantModuleDiscoveryConfig(BaseModel):
@@ -127,6 +128,7 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
     sensors: dict[str, SensorComponent] = Field(default_factory=dict)
     numbers: dict[str, NumberComponent] = Field(default_factory=dict)
     selects: dict[str, SelectComponent] = Field(default_factory=dict)
+    covers: dict[str, CoverComponent] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -173,6 +175,11 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                 data["selects"][identifier] = {
                     "target": target,
                 }
+            elif cmp in MOTORS:
+                identifier = target = cmp
+                data["covers"][identifier] = {
+                    "target": target,
+                }
 
         # Set properties of manual and automatically defined components
         for platform in PLATFORMS:
@@ -198,4 +205,5 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
             **self.sensors,
             **self.numbers,
             **self.selects,
+            **self.covers,
         }
