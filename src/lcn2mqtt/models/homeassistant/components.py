@@ -5,8 +5,8 @@ from itertools import chain
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from pypck.lcn_addr import LcnAddr
 from pypck import lcn_defs
+from pypck.lcn_addr import LcnAddr
 
 from ...helpers import normalize_def_names
 
@@ -318,8 +318,8 @@ class ClimateComponent(BaseComponentModel):
     current_temperature_topic: str | None = None
     mode_state_topic: str | None = None
     mode_command_topic: str | None = None
-    mode_command_template: str = '{{ value if value=="off" else "on" }}'
-    mode_state_template: str = '{{ "off" if value=="off" else "heat" }}'
+    mode_command_template: str = '{{ "off" if value=="heat" else "on" }}'
+    mode_state_template: str = '{{ "heat" if value=="off" else "off" }}'
     modes: list[str] = ["off", "heat"]
 
     platform: Literal["climate"] = Field(default="climate", alias="p")  # type: ignore[assignment]

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
 from itertools import chain
+from typing import Any
+
 from pypck import inputs, lcn_defs
 from pypck.device import DeviceConnection
 
@@ -137,6 +138,8 @@ class SetpointHandler:
             _LOG.warning("Received command for invalid setpoint index %d", idx)
             return
 
+        serial = device_connection.serials.software_serial
+
         if action in ["state", "locked"]:
             return
 
@@ -154,16 +157,16 @@ class SetpointHandler:
         unit = getattr(module, f"setpoint{idx}").unit
 
         if action == "set":
-            await device_connection.var_abs(variable, value, unit)
+            await device_connection.var_abs(variable, value, unit, serial)
         elif action == "shift":
             # shift current setpoint
             await device_connection.var_rel(
-                variable, value, unit, lcn_defs.RelVarRef.CURRENT
+                variable, value, unit, lcn_defs.RelVarRef.CURRENT, serial
             )
         elif action == "offset":
             # shift programmed setpoint
             await device_connection.var_rel(
-                variable, value, unit, lcn_defs.RelVarRef.PROG
+                variable, value, unit, lcn_defs.RelVarRef.PROG, serial
             )
         elif action == "lock":
             # lock regulator to value

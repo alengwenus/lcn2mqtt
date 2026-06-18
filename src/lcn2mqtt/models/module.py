@@ -94,7 +94,7 @@ class Variable(BaseModel):
 
     value: VariableValue = None  # native unit
     unit: lcn_defs.VarUnit = lcn_defs.VarUnit.NATIVE  # units for the variable
-    locked: bool = False  # whether the variable is locked (for setpoints)
+    locked: bool | None = None  # whether the variable is locked (for setpoints)
 
     @field_validator("unit", mode="before")
     @classmethod
