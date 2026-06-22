@@ -2,6 +2,7 @@
 
 import re
 from functools import wraps
+from typing import AsyncGenerator
 
 from pypck import inputs
 
@@ -32,12 +33,15 @@ def mqtt_handler(pattern: str):
     return decorator
 
 
-def dispatch_mqtt(topic: str, payload, *args, **kwargs):
+async def dispatch_mqtt(topic: str, payload, *args, **kwargs) -> bool:
     """Dispatch an MQTT command to the appropriate handler based on the topic."""
+    success = False
     for pattern, func in _MQTT_HANDLER_REGISTRY:
         match = pattern.match(topic)
         if match:
-            func(topic, payload, *args, **kwargs)
+            await func(topic, payload, *args, **kwargs)
+            success = True
+    return success
 
 
 def input_handler(inp: inputs.Input):
@@ -47,7 +51,7 @@ def input_handler(inp: inputs.Input):
         _INPUT_HANDLER_REGISTRY.append((inp, func))
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
 
         return wrapper
@@ -55,8 +59,12 @@ def input_handler(inp: inputs.Input):
     return decorator
 
 
-def dispatch_input(inp: inputs.Input, *args, **kwargs):
+async def dispatch_input(
+    inp: inputs.Input, *args, **kwargs
+) -> AsyncGenerator[tuple[str, str]]:
     """Dispatch an input command to the appropriate handler."""
     for registered_inp, func in _INPUT_HANDLER_REGISTRY:
         if isinstance(inp, registered_inp):
-            func(inp, *args, **kwargs)
+            messages: list[tuple[str, str]] = await func(inp, *args, **kwargs)
+            for subtopic, payload in messages:
+                yield subtopic, payload

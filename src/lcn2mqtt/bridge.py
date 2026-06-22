@@ -12,17 +12,17 @@ from pypck import inputs, lcn_defs
 from pypck.connection import PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
 
-from .models.config import AppConfig
+from .discovery import DiscoveryManager
 from .handlers import (
     LedHandler,
     MotorRelayHandler,
     OutputHandler,
-    RelayHandler,
     SetpointHandler,
     ThresholdHandler,
     VariableHandler,
 )
-from .discovery import DiscoveryManager
+from .handlers.dispatcher import dispatch_input, dispatch_mqtt
+from .models.config import AppConfig
 from .models.module import Module
 
 _LOG = logging.getLogger(__name__)
@@ -42,7 +42,6 @@ class Bridge:
         self._loop_task: asyncio.Task[None] | None = None
         self._discovery: DiscoveryManager | None = None
         self._output_handler = OutputHandler(self._publish)
-        self._relay_handler = RelayHandler(self._publish)
         self._motor_relay_handler = MotorRelayHandler(self._publish)
         self._led_handler = LedHandler(self._publish)
         self._variable_handler = VariableHandler(self._publish)
@@ -277,9 +276,9 @@ class Bridge:
                 await self._set_module_serials(module, inp)
             elif isinstance(inp, inputs.ModStatusOutput):
                 await self._output_handler.handle_input(inp, module, prefix)
-            elif isinstance(inp, inputs.ModStatusRelays):
-                await self._relay_handler.handle_input(inp, module, prefix)
-                await self._motor_relay_handler.handle_input(inp, module, prefix)
+            # elif isinstance(inp, inputs.ModStatusRelays):
+            # await self._relay_handler.handle_input(inp, module, prefix)
+            # await self._motor_relay_handler.handle_input(inp, module, prefix)
             elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
                 await self._led_handler.handle_input(inp, module, prefix)
             #     await self._led_handler.handle_input(inp, module, prefix)
@@ -288,6 +287,9 @@ class Bridge:
                 await self._setpoint_handler.handle_input(inp, module, prefix)
                 await self._threshold_handler.handle_input(inp, module, prefix)
             else:
+                async for subtopic, payload in dispatch_input(inp, module=module):
+                    await self._publish(f"{prefix}/{subtopic}", payload)
+
                 pass
                 # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
@@ -311,8 +313,9 @@ class Bridge:
             return
 
         try:
-            # expected topic format: <base>/<m|g>/<seg>/<addr>/<handler>/<subtopics...>
+            # expected topic format: <base>/<module|group>/<seg>/<addr>/<handler>/<subtopics...>
             lcn_addr = self._parse_addr_from_topic(topic)
+            subtopic = topic.lower().split("/", 4)[-1]
             parts = topic.lower().split("/")
             handler = parts[4]
             sub_parts = parts[5:]
@@ -332,17 +335,19 @@ class Bridge:
         )  # ensure module exists and is complete before handling input
         device_connection = module.device_connection
 
+        await dispatch_mqtt(subtopic, payload, module=module)
+
         if handler == "output":
             await self._output_handler.handle_command(
                 device_connection, handler, sub_parts, payload, module
             )
-        elif handler == "relay":
-            await self._relay_handler.handle_command(
-                device_connection,
-                handler,
-                sub_parts,
-                payload,
-            )
+        # elif handler == "relay":
+        #     await self._relay_handler.handle_command(
+        #         device_connection,
+        #         handler,
+        #         sub_parts,
+        #         payload,
+        #     )
         elif handler == "motor_relays":
             await self._motor_relay_handler.handle_command(
                 device_connection, handler, sub_parts, payload
@@ -363,5 +368,5 @@ class Bridge:
             await self._led_handler.handle_command(
                 device_connection, handler, sub_parts, payload
             )
-        else:
-            _LOG.debug("Ignoring command handler %s", handler)
+        # else:
+        #     _LOG.debug("Ignoring command handler %s", handler)
