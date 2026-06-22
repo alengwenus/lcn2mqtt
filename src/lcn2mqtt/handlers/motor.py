@@ -7,69 +7,64 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from pypck import inputs, lcn_defs
-from pypck.device import DeviceConnection
 
 from ..models.module import Module, MotorState
+from .dispatcher import input_handler, mqtt_handler
 
 _LOG = logging.getLogger(__name__)
 
 Publish = Callable[[str, Any], Awaitable[None]]
 
 
-class MotorRelayHandler:
-    """Handles status updates and commands for LCN motor outputs."""
+@input_handler(inputs.ModStatusRelays)
+async def handle_input(
+    inp: inputs.ModStatusRelays, module: Module
+) -> list[tuple[str, str]]:
+    """Handle a motor position status input, update the module state, and publish any changes."""
+    states = [MotorState.OPEN] * 4
+    for idx in range(4):
+        if inp.is_opening(idx):
+            states[idx] = MotorState.OPENING
+        elif inp.is_closing(idx):
+            states[idx] = MotorState.CLOSING
+        elif inp.is_assumed_closed(idx):
+            states[idx] = MotorState.CLOSED
+    changed = module.update_motors(states)
+    messages = []
+    for i, did_change in enumerate(changed, start=1):
+        if did_change:
+            messages.append((f"motor_relays/{i}/state", states[i - 1].value))
+    return messages
 
-    def __init__(self, publish: Publish) -> None:
-        self._publish = publish
 
-    async def handle_input(
-        self, inp: inputs.ModStatusRelays, module: Module, prefix: str
-    ) -> None:
-        """Handle a motor position status input, update the module state, and publish any changes."""
-        states = [MotorState.OPEN] * 4
-        for idx in range(4):
-            if inp.is_opening(idx):
-                states[idx] = MotorState.OPENING
-            elif inp.is_closing(idx):
-                states[idx] = MotorState.CLOSING
-            elif inp.is_assumed_closed(idx):
-                states[idx] = MotorState.CLOSED
-        changed = module.update_motors(states)
-        for i, did_change in enumerate(changed, start=1):
-            if did_change:
-                await self._publish(
-                    f"{prefix}/motor_relays/{i}/state", states[i - 1].value
-                )
+@mqtt_handler("motor_relays/+/set")
+async def handle_command(
+    subtopic: str,
+    payload: str,
+    module: Module,
+) -> None:
+    """Handle a command to change a motor state."""
+    device_connection = module.device_connection
+    if device_connection is None:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+        action = parts[2]
+    except ValueError:
+        return
+    if not 1 <= idx <= 4:
+        return
 
-    async def handle_command(
-        self,
-        device_connection: DeviceConnection,
-        handler: str,
-        parts: list[str],
-        payload: str,
-    ) -> None:
-        """Handle a command to change a motor state."""
-        if handler != "motor_relays":
+    if action == "set":
+        modifier_map = {
+            "open": lcn_defs.MotorStateModifier.UP,
+            "up": lcn_defs.MotorStateModifier.UP,
+            "close": lcn_defs.MotorStateModifier.DOWN,
+            "down": lcn_defs.MotorStateModifier.DOWN,
+            "stop": lcn_defs.MotorStateModifier.STOP,
+        }
+        modifier = modifier_map.get(payload)
+        if modifier is None:
             return
-        if len(parts) < 1:
-            return
-        try:
-            idx = int(parts[0])
-            action = parts[1]
-        except ValueError:
-            return
-        if not 1 <= idx <= 4:
-            return
-
-        if action == "set":
-            modifier_map = {
-                "open": lcn_defs.MotorStateModifier.UP,
-                "up": lcn_defs.MotorStateModifier.UP,
-                "close": lcn_defs.MotorStateModifier.DOWN,
-                "down": lcn_defs.MotorStateModifier.DOWN,
-                "stop": lcn_defs.MotorStateModifier.STOP,
-            }
-            modifier = modifier_map.get(payload)
-            if modifier is None:
-                return
-            await device_connection.control_motor_relays(idx - 1, modifier)
+        await device_connection.control_motor_relays(idx - 1, modifier)

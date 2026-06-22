@@ -15,7 +15,6 @@ from pypck.lcn_addr import LcnAddr
 from .discovery import DiscoveryManager
 from .handlers import (
     LedHandler,
-    MotorRelayHandler,
     OutputHandler,
     SetpointHandler,
     ThresholdHandler,
@@ -42,7 +41,6 @@ class Bridge:
         self._loop_task: asyncio.Task[None] | None = None
         self._discovery: DiscoveryManager | None = None
         self._output_handler = OutputHandler(self._publish)
-        self._motor_relay_handler = MotorRelayHandler(self._publish)
         self._led_handler = LedHandler(self._publish)
         self._variable_handler = VariableHandler(self._publish)
         self._setpoint_handler = SetpointHandler(self._publish)
@@ -276,9 +274,6 @@ class Bridge:
                 await self._set_module_serials(module, inp)
             elif isinstance(inp, inputs.ModStatusOutput):
                 await self._output_handler.handle_input(inp, module, prefix)
-            # elif isinstance(inp, inputs.ModStatusRelays):
-            # await self._relay_handler.handle_input(inp, module, prefix)
-            # await self._motor_relay_handler.handle_input(inp, module, prefix)
             elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
                 await self._led_handler.handle_input(inp, module, prefix)
             #     await self._led_handler.handle_input(inp, module, prefix)
@@ -340,17 +335,6 @@ class Bridge:
         if handler == "output":
             await self._output_handler.handle_command(
                 device_connection, handler, sub_parts, payload, module
-            )
-        # elif handler == "relay":
-        #     await self._relay_handler.handle_command(
-        #         device_connection,
-        #         handler,
-        #         sub_parts,
-        #         payload,
-        #     )
-        elif handler == "motor_relays":
-            await self._motor_relay_handler.handle_command(
-                device_connection, handler, sub_parts, payload
             )
         elif handler == "variable":
             await self._variable_handler.handle_command(
