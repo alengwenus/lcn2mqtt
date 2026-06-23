@@ -28,7 +28,7 @@ async def handle_relay_status(
 
 
 @mqtt_handler("relay/+/set")
-async def handle_set_command(
+async def handle_set(
     subtopic: str,
     payload: str,
     module: Module,

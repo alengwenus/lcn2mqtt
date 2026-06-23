@@ -17,7 +17,7 @@ Publish = Callable[[str, Any], Awaitable[None]]
 
 
 @input_handler(inputs.ModStatusRelays)
-async def handle_input(
+async def handle_relays_status(
     inp: inputs.ModStatusRelays, module: Module
 ) -> list[tuple[str, str]]:
     """Handle a motor position status input, update the module state, and publish any changes."""
@@ -38,7 +38,7 @@ async def handle_input(
 
 
 @mqtt_handler("motor_relays/+/set")
-async def handle_command(
+async def handle_set(
     subtopic: str,
     payload: str,
     module: Module,

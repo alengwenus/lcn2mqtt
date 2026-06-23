@@ -15,7 +15,6 @@ from pypck.lcn_addr import LcnAddr
 from .discovery import DiscoveryManager
 from .handlers import (
     LedHandler,
-    OutputHandler,
     SetpointHandler,
     ThresholdHandler,
     VariableHandler,
@@ -40,7 +39,6 @@ class Bridge:
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
         self._discovery: DiscoveryManager | None = None
-        self._output_handler = OutputHandler(self._publish)
         self._led_handler = LedHandler(self._publish)
         self._variable_handler = VariableHandler(self._publish)
         self._setpoint_handler = SetpointHandler(self._publish)
@@ -272,8 +270,6 @@ class Bridge:
 
             if isinstance(inp, inputs.ModSn):
                 await self._set_module_serials(module, inp)
-            elif isinstance(inp, inputs.ModStatusOutput):
-                await self._output_handler.handle_input(inp, module, prefix)
             elif isinstance(inp, inputs.ModStatusLedsAndLogicOps):
                 await self._led_handler.handle_input(inp, module, prefix)
             #     await self._led_handler.handle_input(inp, module, prefix)
@@ -332,11 +328,7 @@ class Bridge:
 
         await dispatch_mqtt(subtopic, payload, module=module)
 
-        if handler == "output":
-            await self._output_handler.handle_command(
-                device_connection, handler, sub_parts, payload, module
-            )
-        elif handler == "variable":
+        if handler == "variable":
             await self._variable_handler.handle_command(
                 device_connection, handler, sub_parts, payload, module
             )
