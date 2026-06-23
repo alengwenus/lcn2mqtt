@@ -6,6 +6,8 @@ from typing import AsyncGenerator
 
 from pypck import inputs
 
+from lcn2mqtt.helpers import MqttMessage
+
 _MQTT_HANDLER_REGISTRY = []
 _INPUT_HANDLER_REGISTRY = []
 
@@ -61,10 +63,10 @@ def input_handler(inp: inputs.Input):
 
 async def dispatch_input(
     inp: inputs.Input, *args, **kwargs
-) -> AsyncGenerator[tuple[str, str]]:
+) -> AsyncGenerator[MqttMessage]:
     """Dispatch an input command to the appropriate handler."""
     for registered_inp, func in _INPUT_HANDLER_REGISTRY:
         if isinstance(inp, registered_inp):
-            messages: list[tuple[str, str]] = await func(inp, *args, **kwargs)
-            for subtopic, payload in messages:
-                yield subtopic, payload
+            messages: list[MqttMessage] = await func(inp, *args, **kwargs)
+            for message in messages:
+                yield message

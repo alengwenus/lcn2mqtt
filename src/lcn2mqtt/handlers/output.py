@@ -5,9 +5,12 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
+
 from pydantic import ValidationError
-from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from pypck import inputs, lcn_defs
+
+from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
+from lcn2mqtt.helpers import MqttMessage
 
 from ..models.module import Module, Output, OutputState
 
@@ -21,7 +24,7 @@ _DEFAULT_TRANSITION_MS = 500
 @input_handler(inputs.ModStatusOutput)
 async def handle_input(
     inp: inputs.ModStatusOutput, module: Module
-) -> list[tuple[str, str | None]]:
+) -> list[MqttMessage]:
     """Handle an output status input, update the module state, and publish any changes."""
     idx = inp.output_id + 1  # 0-based -> 1-based
     output = getattr(module, f"output{idx}")
@@ -31,15 +34,15 @@ async def handle_input(
     )
     output.update_brightness(inp.percent)
 
-    messages: list[tuple[str, str | None]] = []
+    messages: list[MqttMessage] = []
     if state_changed:
         messages.append(
-            (
+            MqttMessage(
                 f"output/{idx}/state",
-                output.state.value if output.state else None,
+                output.state.value if output.state is not None else None,
             )
         )
-    messages.append((f"output/{idx}/brightness", f"{inp.percent:.2f}"))
+    messages.append(MqttMessage(f"output/{idx}/brightness", f"{inp.percent:.2f}"))
     return messages
 
 

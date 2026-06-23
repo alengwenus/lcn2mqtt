@@ -278,10 +278,8 @@ class Bridge:
                 await self._setpoint_handler.handle_input(inp, module, prefix)
                 await self._threshold_handler.handle_input(inp, module, prefix)
             else:
-                async for subtopic, payload in dispatch_input(inp, module=module):
-                    await self._publish(f"{prefix}/{subtopic}", payload)
-
-                pass
+                async for message in dispatch_input(inp, module=module):
+                    await self._publish(f"{prefix}/{message.topic}", message.payload)
                 # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001

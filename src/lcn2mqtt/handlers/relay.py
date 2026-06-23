@@ -6,6 +6,8 @@ import logging
 
 from pypck import inputs, lcn_defs
 
+from lcn2mqtt.helpers import MqttMessage
+
 from ..models.module import Module, RelayState
 from .dispatcher import input_handler, mqtt_handler
 
@@ -16,14 +18,14 @@ _LOG = logging.getLogger(__name__)
 async def handle_relay_status(
     inp: inputs.ModStatusRelays,
     module: Module,
-) -> list[tuple[str, str]]:
+) -> list[MqttMessage]:
     """Handle a relay status input, update the module state, and return any changes."""
     states = [RelayState.ON if s else RelayState.OFF for s in inp.states]
     changed = module.update_relays(states)
-    messages = []
+    messages: list[MqttMessage] = []
     for i, did_change in enumerate(changed, start=1):
         if did_change:
-            messages.append((f"relay/{i}/state", states[i - 1].value))
+            messages.append(MqttMessage(f"relay/{i}/state", states[i - 1].value))
     return messages
 
 
