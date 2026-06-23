@@ -1,14 +1,13 @@
 """Peripheral component handlers for the LCN <-> MQTT bridge."""
 
-from . import motor, output, relay
-from .led import LedHandler
+from . import led, motor, output, relay
 from .variable import SetpointHandler, ThresholdHandler, VariableHandler
 
 __all__ = [
+    "led",
     "motor",
     "output",
     "relay",
-    "LedHandler",
     "VariableHandler",
     "SetpointHandler",
     "ThresholdHandler",
