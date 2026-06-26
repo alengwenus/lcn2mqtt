@@ -13,10 +13,6 @@ from pypck.connection import PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
 
 from .discovery import DiscoveryManager
-from .handlers import (
-    SetpointHandler,
-    ThresholdHandler,
-)
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
 from .models.config import AppConfig
 from .models.module import Module
@@ -37,8 +33,6 @@ class Bridge:
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
         self._discovery: DiscoveryManager | None = None
-        self._setpoint_handler = SetpointHandler(self._publish)
-        self._threshold_handler = ThresholdHandler(self._publish)
 
     # ---------- topic helpers ----------
 
@@ -266,13 +260,10 @@ class Bridge:
 
             if isinstance(inp, inputs.ModSn):
                 await self._set_module_serials(module, inp)
-            elif isinstance(inp, inputs.ModStatusVar):
-                await self._setpoint_handler.handle_input(inp, module, prefix)
-                await self._threshold_handler.handle_input(inp, module, prefix)
-
-            async for message in dispatch_input(inp, module=module):
-                await self._publish(f"{prefix}/{message.topic}", message.payload)
-                # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
+            else:
+                async for message in dispatch_input(inp, module=module):
+                    await self._publish(f"{prefix}/{message.topic}", message.payload)
+            # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
             _LOG.exception("Error dispatching LCN input %s", type(inp).__name__)
@@ -297,9 +288,6 @@ class Bridge:
             # expected topic format: <base>/<module|group>/<seg>/<addr>/<handler>/<subtopics...>
             lcn_addr = self._parse_addr_from_topic(topic)
             subtopic = topic.lower().split("/", 4)[-1]
-            parts = topic.lower().split("/")
-            handler = parts[4]
-            sub_parts = parts[5:]
         except Exception:  # noqa: BLE001
             _LOG.warning("Received MQTT message with invalid topic format: %s", topic)
             return
@@ -314,17 +302,5 @@ class Bridge:
         module = await self.ensure_module_complete(
             lcn_addr
         )  # ensure module exists and is complete before handling input
-        device_connection = module.device_connection
 
         await dispatch_mqtt(subtopic, payload, module=module)
-
-        if handler == "setpoint":
-            await self._setpoint_handler.handle_command(
-                device_connection, handler, sub_parts, payload, module
-            )
-        elif handler == "threshold":
-            await self._threshold_handler.handle_command(
-                device_connection, handler, sub_parts, payload, module
-            )
-        # else:
-        #     _LOG.debug("Ignoring command handler %s", handler)
