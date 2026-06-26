@@ -8,8 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pypck import lcn_defs
 from pypck.lcn_addr import LcnAddr
 
-from ...helpers import normalize_def_names
-
 
 def set_if_none(value: Any, default: Any) -> Any:
     """Set value to default if it is None."""
@@ -85,11 +83,11 @@ class SwitchComponent(BaseComponentModel):
     def validate_target(cls, value: Any) -> Any:
         """Validate that target is in the form 'relay1', 'output2', etc."""
         if isinstance(value, str):
-            value = normalize_def_names(value)
-            if value.upper() in lcn_defs.RelayPort.__members__:
-                value = lcn_defs.RelayPort[value.upper()]
-            elif value.upper() in lcn_defs.OutputPort.__members__:
-                value = lcn_defs.OutputPort[value.upper()]
+            value = value.upper()
+            if value in lcn_defs.RelayPort.__members__:
+                value = lcn_defs.RelayPort[value]
+            elif value in lcn_defs.OutputPort.__members__:
+                value = lcn_defs.OutputPort[value]
             else:
                 raise ValueError(f"Invalid target '{value}'.")
         return value
@@ -155,9 +153,9 @@ class BinarySensorComponent(BaseComponentModel):
     def validate_source(cls, value: Any) -> Any:
         """Validate the source."""
         if isinstance(value, str):
-            value = normalize_def_names(value)
-            if value.upper() in lcn_defs.BinSensorPort.__members__:
-                value = lcn_defs.BinSensorPort[value.upper()]
+            value_upper = value.upper()
+            if value_upper in lcn_defs.BinSensorPort.__members__:
+                value = lcn_defs.BinSensorPort[value_upper]
             else:
                 raise ValueError(f"Invalid source '{value}'.")
         return value
@@ -184,14 +182,14 @@ class SensorComponent(BaseComponentModel):
     def validate_source(cls, value: Any) -> Any:
         """Validate the source."""
         if isinstance(value, str):
-            value = normalize_def_names(value)
-            if value.upper().replace("VARIABLE", "VAR") in lcn_defs.Var.__members__:
-                value = lcn_defs.Var[value.upper()]
-            elif value.upper() in lcn_defs.LedPort.__members__:
-                value = lcn_defs.LedPort[value.upper()]
+            value_upper = value.upper()
+            if value_upper in lcn_defs.Var.__members__:
+                var = lcn_defs.Var[value_upper]
+            elif value_upper in lcn_defs.LedPort.__members__:
+                var = lcn_defs.LedPort[value_upper]
             else:
                 raise ValueError(f"Invalid source '{value}'.")
-        return value
+        return var
 
     def set_topics(self):
         """Set default topics."""
@@ -233,12 +231,12 @@ class NumberComponent(BaseComponentModel):
     def validate_target(cls, value: Any) -> Any:
         """Validate the target."""
         if isinstance(value, str):
-            value = normalize_def_names(value)
-            if value.upper() in lcn_defs.Var.__members__:
-                value = lcn_defs.Var[value.upper()]
+            value_upper = value.upper()
+            if value_upper in lcn_defs.Var.__members__:
+                var = lcn_defs.Var[value_upper]
             else:
                 raise ValueError(f"Invalid target '{value}'.")
-        return value
+        return var
 
     def set_topics(self):
         """Set default topics."""
@@ -285,9 +283,9 @@ class SelectComponent(BaseComponentModel):
     def validate_target(cls, value: Any) -> Any:
         """Validate the target."""
         if isinstance(value, str):
-            value = normalize_def_names(value)
-            if value.upper() in lcn_defs.LedPort.__members__:
-                value = lcn_defs.LedPort[value.upper()]
+            value_upper = value.upper()
+            if value_upper in lcn_defs.LedPort.__members__:
+                value = lcn_defs.LedPort[value_upper]
             else:
                 raise ValueError(f"Invalid target '{value}'.")
         return value
@@ -319,9 +317,9 @@ class CoverComponent(BaseComponentModel):
     def validate_target(cls, value: Any) -> Any:
         """Validate the target."""
         if isinstance(value, str):
-            value = normalize_def_names(value)
-            if value.upper() in lcn_defs.MotorPort.__members__:
-                value = lcn_defs.MotorPort[value.upper()]
+            value_upper = value.upper()
+            if value_upper in lcn_defs.MotorPort.__members__:
+                value = lcn_defs.MotorPort[value_upper]
             else:
                 raise ValueError(f"Invalid target '{value}'.")
         return value
@@ -363,22 +361,15 @@ class ClimateComponent(BaseComponentModel):
             if field not in data:
                 raise ValueError(f"'{field}' is required for climate components.")
 
-        temperature_str = normalize_def_names(data["temperature"]).upper()
-        current_temperature_str = normalize_def_names(
-            data["current_temperature"]
-        ).upper()
-
-        if temperature_str in (setpoint.name for setpoint in lcn_defs.Var.set_points()):
-            data["temperature"] = lcn_defs.Var[temperature_str]
+        temperature_str = data["temperature"]
+        if lcn_defs.Var.is_set_point(temperature_str):
+            data["temperature"] = lcn_defs.Var[temperature_str.upper()]
         else:
             raise ValueError(f"Invalid temperature '{temperature_str}'.")
 
-        if current_temperature_str in (
-            name
-            for name in lcn_defs.Var.__members__
-            if lcn_defs.Var[name] in lcn_defs.Var.variables()
-        ):
-            data["current_temperature"] = lcn_defs.Var[current_temperature_str]
+        current_temperature_str = data["current_temperature"]
+        if lcn_defs.Var.is_variable(current_temperature_str):
+            data["current_temperature"] = lcn_defs.Var[current_temperature_str.upper()]
         else:
             raise ValueError(
                 f"Invalid current_temperature '{current_temperature_str}'."

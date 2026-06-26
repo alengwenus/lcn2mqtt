@@ -9,9 +9,9 @@ from pydantic import (
     Field,
     model_validator,
 )
+from pypck import lcn_defs
 from pypck.lcn_addr import LcnAddr
 
-from ...helpers import normalize_def_names
 from .components import (
     BinarySensorComponent,
     ClimateComponent,
@@ -23,105 +23,24 @@ from .components import (
     SwitchComponent,
 )
 
-BINSENSORS = {
-    "binsensor1",
-    "binsensor2",
-    "binsensor3",
-    "binsensor4",
-    "binsensor5",
-    "binsensor6",
-    "binsensor7",
-    "binsensor8",
-}
-OUTPUTS = {"output1", "output2", "output3", "output4"}
-RELAYS = {
-    "relay1",
-    "relay2",
-    "relay3",
-    "relay4",
-    "relay5",
-    "relay6",
-    "relay7",
-    "relay8",
-}
-MOTORS = {"motor1", "motor2", "motor3", "motor4"}
-LEDS = {
-    "led1",
-    "led2",
-    "led3",
-    "led4",
-    "led5",
-    "led6",
-    "led7",
-    "led8",
-    "led9",
-    "led10",
-    "led11",
-    "led12",
-}
-VARS = {
-    "var1",
-    "var2",
-    "var3",
-    "var4",
-    "var5",
-    "var6",
-    "var7",
-    "var8",
-    "var9",
-    "var10",
-    "var11",
-    "var12",
-}
-VARS_OLD = {
-    "tvar",
-    "r1var",
-    "r2var",
-}
-SETPOINTS = {
-    "setpoint1",
-    "setpoint2",
-}
-THRESHOLDS = {
-    "thrs1",
-    "thrs2",
-    "thrs3",
-    "thrs4",
-    "thrs2_1",
-    "thrs2_2",
-    "thrs2_3",
-    "thrs2_4",
-    "thrs3_1",
-    "thrs3_2",
-    "thrs3_3",
-    "thrs3_4",
-    "thrs4_1",
-    "thrs4_2",
-    "thrs4_3",
-    "thrs4_4",
-}
-THRESHOLDS_OLD = {
-    "thrs1",
-    "thrs2",
-    "thrs3",
-    "thrs4",
-    "thrs5",
-}
+BINSENSORS = tuple(key.lower() for key in lcn_defs.BinSensorPort.__members__.keys())
+OUTPUTS = tuple(key.lower() for key in lcn_defs.OutputPort.__members__.keys())
+RELAYS = tuple(key.lower() for key in lcn_defs.RelayPort.__members__.keys())
+MOTORS = tuple(key.lower() for key in lcn_defs.MotorPort.__members__.keys())
+LEDS = tuple(key.lower() for key in lcn_defs.LedPort.__members__.keys())
+VARS = tuple(key.lower() for key in lcn_defs.Var.__members__.keys())
 
-STANDARD_COMPONENTS = OUTPUTS | RELAYS
-
-ALL_COMPONENTS = (
-    BINSENSORS
-    | OUTPUTS
-    | RELAYS
-    | MOTORS
-    | LEDS
-    | VARS
-    | VARS_OLD
-    | SETPOINTS
-    | THRESHOLDS
-    | THRESHOLDS_OLD
+STANDARD_COMPONENTS = (
+    lcn_defs.OutputPort.OUTPUT1.name.lower(),
+    lcn_defs.OutputPort.OUTPUT2.name.lower(),
+    *(
+        key.lower()
+        for key in lcn_defs.RelayPort.__members__.keys()
+        if key.startswith("RELAY")
+    ),
 )
+
+ALL_COMPONENTS = BINSENSORS + OUTPUTS + RELAYS + MOTORS + LEDS + VARS
 
 PLATFORMS = (
     "binary_sensors",
@@ -164,16 +83,16 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
 
         # Process wildcard entries in include/exclude
         include = {
-            cmp
+            cmp.lower()
             for include_cmp in data.get("include", STANDARD_COMPONENTS)
             for cmp in ALL_COMPONENTS
-            if fnmatch.fnmatch(cmp, normalize_def_names(include_cmp))
+            if fnmatch.fnmatch(cmp.lower(), include_cmp)
         }
         exclude = {
-            cmp
+            cmp.lower()
             for exclude_cmp in data.get("exclude", set())
             for cmp in ALL_COMPONENTS
-            if fnmatch.fnmatch(cmp, normalize_def_names(exclude_cmp))
+            if fnmatch.fnmatch(cmp.lower(), exclude_cmp)
         }
         take_cmps = include - exclude
 
@@ -194,7 +113,7 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                 data["binary_sensors"][identifier] = {
                     "source": source,
                 }
-            elif cmp in VARS | VARS_OLD | SETPOINTS | THRESHOLDS | THRESHOLDS_OLD:
+            elif cmp in VARS:
                 identifier = target = cmp
                 data["numbers"][identifier] = {
                     "target": target,
