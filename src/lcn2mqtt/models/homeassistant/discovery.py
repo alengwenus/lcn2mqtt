@@ -11,17 +11,28 @@ from pydantic import (
 )
 from pypck.lcn_addr import LcnAddr
 
+from ...helpers import normalize_def_names
 from .components import (
+    BinarySensorComponent,
+    ClimateComponent,
+    CoverComponent,
     LightComponent,
     NumberComponent,
     SelectComponent,
     SensorComponent,
     SwitchComponent,
-    CoverComponent,
-    ClimateComponent,
 )
-from ...helpers import normalize_def_names
 
+BINSENSORS = {
+    "binsensor1",
+    "binsensor2",
+    "binsensor3",
+    "binsensor4",
+    "binsensor5",
+    "binsensor6",
+    "binsensor7",
+    "binsensor8",
+}
 OUTPUTS = {"output1", "output2", "output3", "output4"}
 RELAYS = {
     "relay1",
@@ -100,7 +111,8 @@ THRESHOLDS_OLD = {
 STANDARD_COMPONENTS = OUTPUTS | RELAYS
 
 ALL_COMPONENTS = (
-    OUTPUTS
+    BINSENSORS
+    | OUTPUTS
     | RELAYS
     | MOTORS
     | LEDS
@@ -112,6 +124,7 @@ ALL_COMPONENTS = (
 )
 
 PLATFORMS = (
+    "binary_sensors",
     "switches",
     "lights",
     "sensors",
@@ -132,6 +145,7 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
     include: set[str] = Field(default_factory=set)
     exclude: set[str] = Field(default_factory=set)
 
+    binary_sensors: dict[str, BinarySensorComponent] = Field(default_factory=dict)
     switches: dict[str, SwitchComponent] = Field(default_factory=dict)
     lights: dict[str, LightComponent] = Field(default_factory=dict)
     sensors: dict[str, SensorComponent] = Field(default_factory=dict)
@@ -175,6 +189,11 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
                 data["lights"][identifier] = {
                     "target": target,
                 }
+            elif cmp in BINSENSORS:
+                identifier = source = cmp
+                data["binary_sensors"][identifier] = {
+                    "source": source,
+                }
             elif cmp in VARS | VARS_OLD | SETPOINTS | THRESHOLDS | THRESHOLDS_OLD:
                 identifier = target = cmp
                 data["numbers"][identifier] = {
@@ -210,6 +229,7 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
     def components(self) -> dict[str, Any]:
         """Return a dict of all components by platform."""
         return {
+            **self.binary_sensors,
             **self.switches,
             **self.lights,
             **self.sensors,

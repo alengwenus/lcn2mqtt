@@ -213,6 +213,15 @@ class Module(BaseModel):
     threshold4 = alias_property("threshold14")
     threshold5 = alias_property("threshold15")
 
+    binary1: bool | None = None
+    binary2: bool | None = None
+    binary3: bool | None = None
+    binary4: bool | None = None
+    binary5: bool | None = None
+    binary6: bool | None = None
+    binary7: bool | None = None
+    binary8: bool | None = None
+
     def update_relays(self, states: list[RelayState]) -> list[bool]:
         """Update the relay states and return a list of which ones changed."""
         if len(states) != 8:
@@ -244,6 +253,17 @@ class Module(BaseModel):
         for i in range(1, 13):
             if getattr(self, f"led{i}") != states[i - 1]:
                 setattr(self, f"led{i}", states[i - 1])
+                changed[i - 1] = True
+        return changed
+
+    def update_binaries(self, states: list[bool]) -> list[bool]:
+        """Update the binary states and return a list of which ones changed."""
+        if len(states) != 8:
+            raise ValueError(f"Invalid number of binary states: {len(states)}")
+        changed = [False] * 8
+        for i in range(1, 9):
+            if getattr(self, f"binary{i}") != states[i - 1]:
+                setattr(self, f"binary{i}", states[i - 1])
                 changed[i - 1] = True
         return changed
 

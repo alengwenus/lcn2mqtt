@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
-from typing import Any
 
 from pypck import inputs, lcn_defs
 
@@ -14,8 +12,6 @@ from lcn2mqtt.helpers import MqttMessage
 from ..models.module import Module
 
 _LOG = logging.getLogger(__name__)
-
-Publish = Callable[[str, Any], Awaitable[None]]
 
 
 @input_handler(inputs.ModStatusLedsAndLogicOps)

@@ -139,6 +139,37 @@ class LightComponent(SwitchComponent):
         self.brightness_scale = set_if_none(self.brightness_scale, 100)
 
 
+class BinarySensorComponent(BaseComponentModel):
+    """Home Assistant binary sensor component."""
+
+    source: lcn_defs.BinSensorPort = Field(..., exclude=True)
+
+    state_topic: str | None = None
+    payload_on: str = "on"
+    payload_off: str = "off"
+
+    platform: Literal["binary_sensor"] = Field(default="binary_sensor", alias="p")  # type: ignore[assignment]
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def validate_source(cls, value: Any) -> Any:
+        """Validate the source."""
+        if isinstance(value, str):
+            value = normalize_def_names(value)
+            if value.upper() in lcn_defs.BinSensorPort.__members__:
+                value = lcn_defs.BinSensorPort[value.upper()]
+            else:
+                raise ValueError(f"Invalid source '{value}'.")
+        return value
+
+    def set_topics(self):
+        """Set default topics."""
+        self.state_topic = set_if_none(
+            self.state_topic,
+            f"{self.prefix}/binsensor/{int(self.source.value) + 1}/state",
+        )
+
+
 class SensorComponent(BaseComponentModel):
     """Home Assistant sensor component."""
 
