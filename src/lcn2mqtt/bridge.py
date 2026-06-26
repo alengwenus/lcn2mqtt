@@ -16,7 +16,6 @@ from .discovery import DiscoveryManager
 from .handlers import (
     SetpointHandler,
     ThresholdHandler,
-    VariableHandler,
 )
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
 from .models.config import AppConfig
@@ -38,7 +37,6 @@ class Bridge:
         self._mqtt: aiomqtt.Client | None = None
         self._loop_task: asyncio.Task[None] | None = None
         self._discovery: DiscoveryManager | None = None
-        self._variable_handler = VariableHandler(self._publish)
         self._setpoint_handler = SetpointHandler(self._publish)
         self._threshold_handler = ThresholdHandler(self._publish)
 
@@ -269,12 +267,11 @@ class Bridge:
             if isinstance(inp, inputs.ModSn):
                 await self._set_module_serials(module, inp)
             elif isinstance(inp, inputs.ModStatusVar):
-                await self._variable_handler.handle_input(inp, module, prefix)
                 await self._setpoint_handler.handle_input(inp, module, prefix)
                 await self._threshold_handler.handle_input(inp, module, prefix)
-            else:
-                async for message in dispatch_input(inp, module=module):
-                    await self._publish(f"{prefix}/{message.topic}", message.payload)
+
+            async for message in dispatch_input(inp, module=module):
+                await self._publish(f"{prefix}/{message.topic}", message.payload)
                 # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
@@ -321,11 +318,7 @@ class Bridge:
 
         await dispatch_mqtt(subtopic, payload, module=module)
 
-        if handler == "variable":
-            await self._variable_handler.handle_command(
-                device_connection, handler, sub_parts, payload, module
-            )
-        elif handler == "setpoint":
+        if handler == "setpoint":
             await self._setpoint_handler.handle_command(
                 device_connection, handler, sub_parts, payload, module
             )

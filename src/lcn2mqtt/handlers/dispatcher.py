@@ -18,13 +18,14 @@ def mqtt_to_regex(pattern: str) -> str:
     return "^" + pattern + "$"
 
 
-def mqtt_handler(pattern: str):
+def mqtt_handler(*pattern: str):
     """Decorator to mark a method as an MQTT command handler for a specific topic pattern."""
-    regex = mqtt_to_regex(pattern)
+    regexes = [mqtt_to_regex(pat) for pat in pattern]
 
     def decorator(func):
-        compiled = re.compile(regex)
-        _MQTT_HANDLER_REGISTRY.append((compiled, func))
+        for regex in regexes:
+            compiled = re.compile(regex)
+            _MQTT_HANDLER_REGISTRY.append((compiled, func))
 
         @wraps(func)
         def wrapper(*args, **kwargs):

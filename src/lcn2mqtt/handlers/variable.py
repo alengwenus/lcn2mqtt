@@ -10,6 +10,9 @@ from typing import Any
 from pypck import inputs, lcn_defs
 from pypck.device import DeviceConnection
 
+from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
+from lcn2mqtt.helpers import MqttMessage
+
 from ..models.module import Module
 
 _LOG = logging.getLogger(__name__)
@@ -17,75 +20,65 @@ _LOG = logging.getLogger(__name__)
 Publish = Callable[[str, Any], Awaitable[None]]
 
 
-class VariableHandler:
-    """Handles status updates for LCN variables."""
+@input_handler(inputs.ModStatusVar)
+async def handle_input(inp: inputs.ModStatusVar, module: Module) -> list[MqttMessage]:
+    """Handle a variable status input, update the module state, and publish any changes."""
+    if inp.var not in lcn_defs.Var.variables():
+        return []
+    idx = lcn_defs.Var.to_var_id(inp.var) + 1
+    variable = getattr(module, f"variable{idx}", None)
+    if variable is None:
+        _LOG.warning("Received variable input for invalid variable index %d", idx)
+        return []
+    unit = variable.unit
+    value_unit = inp.value.to_var_unit(unit)
+    messages: list[MqttMessage] = []
+    if variable.update_value(int(inp.value.to_native())):
+        messages.append(MqttMessage(f"variable/{idx}/state", value_unit))
+    return messages
 
-    def __init__(self, publish: Publish) -> None:
-        """Initialize the handler with a publish function."""
-        self._publish = publish
 
-    async def handle_input(
-        self, inp: inputs.ModStatusVar, module: Module, prefix: str
-    ) -> None:
-        """Handle a variable status input, update the module state, and publish any changes."""
-        if inp.var not in lcn_defs.Var.variables():
-            return
-        idx = lcn_defs.Var.to_var_id(inp.var) + 1
-        variable = getattr(module, f"variable{idx}", None)
-        if variable is None:
-            _LOG.warning("Received variable input for invalid variable index %d", idx)
-            return
-        unit = variable.unit
-        value_unit = inp.value.to_var_unit(unit)
-        if variable.update_value(int(inp.value.to_native())):
-            await self._publish(f"{prefix}/variable/{idx}/state", value_unit)
+@mqtt_handler("variable/+/set", "variable/+/shift")
+async def handle_variable_set(
+    subtopic: str,
+    payload: str,
+    module: Module,
+) -> None:
+    """Handle a command to change a variable value."""
+    device_connection = module.device_connection
+    if device_connection is None:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+        action = parts[2]
+        variable = lcn_defs.Var.var_id_to_var(idx - 1)
+    except ValueError:
+        return
 
-    async def handle_command(
-        self,
-        device_connection: DeviceConnection,
-        handler: str,
-        parts: list[str],
-        payload: str,
-        module: Module,
-    ) -> None:
-        """Handle a command to change a variable value."""
-        if handler != "variable":
-            return
-        if len(parts) < 2:  # /<idx>/set
-            return
-        try:
-            idx = int(parts[0])
-            action = parts[1]
-            variable = lcn_defs.Var.var_id_to_var(idx - 1)
-        except ValueError:
-            return
+    serial = device_connection.serials.software_serial
+    if serial < 0x170206:
+        variables = lcn_defs.Var.variables_old()
+    else:
+        variables = lcn_defs.Var.variables_new()
+    if variable not in variables:
+        _LOG.warning("Received command for invalid variable index %d", idx)
+        return
 
-        serial = device_connection.serials.software_serial
-        if serial < 0x170206:
-            variables = lcn_defs.Var.variables_old()
-        else:
-            variables = lcn_defs.Var.variables_new()
-        if variable not in variables:
-            _LOG.warning("Received command for invalid variable index %d", idx)
-            return
+    try:
+        value = float(payload)
+    except ValueError:
+        _LOG.warning("Invalid variable payload %r", payload)
+        return
 
-        if action == "state":
-            return
+    unit = getattr(module, f"variable{idx}").unit
 
-        try:
-            value = float(payload)
-        except ValueError:
-            _LOG.warning("Invalid variable payload %r", payload)
-            return
-
-        unit = getattr(module, f"variable{idx}").unit
-
-        if action == "set":
-            await device_connection.var_abs(variable, value, unit, serial)
-        elif action == "shift":
-            await device_connection.var_rel(
-                variable, value, unit, lcn_defs.RelVarRef.CURRENT, serial
-            )
+    if action == "set":
+        await device_connection.var_abs(variable, value, unit, serial)
+    elif action == "shift":
+        await device_connection.var_rel(
+            variable, value, unit, lcn_defs.RelVarRef.CURRENT, serial
+        )
 
 
 class SetpointHandler:
