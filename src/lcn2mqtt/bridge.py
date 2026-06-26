@@ -8,6 +8,7 @@ from contextlib import AsyncExitStack
 from typing import Any
 
 import aiomqtt
+import pypck
 from pypck import inputs, lcn_defs
 from pypck.connection import PchkConnectionManager
 from pypck.lcn_addr import LcnAddr
@@ -26,12 +27,13 @@ LWT_PAYLOAD_OFFLINE = "offline"
 class Bridge:
     """LCN <-> MQTT bridge."""
 
+    _pchk: PchkConnectionManager
+    _mqtt: aiomqtt.Client
+    _loop_task: asyncio.Task[None]
+
     def __init__(self, config: AppConfig) -> None:
         self.config = config
         self.modules: dict[LcnAddr, Module] = config.devices
-        self._pchk: PchkConnectionManager | None = None
-        self._mqtt: aiomqtt.Client | None = None
-        self._loop_task: asyncio.Task[None] | None = None
         self._discovery: DiscoveryManager | None = None
 
     # ---------- topic helpers ----------
@@ -74,7 +76,11 @@ class Bridge:
         """Run the bridge."""
         async with AsyncExitStack() as stack:
             mqtt = await stack.enter_async_context(self._mqtt_client())
+            pchk = await stack.enter_async_context(self._pchk_client())
             self._mqtt = mqtt
+            self._pchk = pchk
+            _LOG.info("Connected to LCN-PCHK at %s:%s", pchk.host, pchk.port)
+
             await mqtt.publish(
                 self._bridge_status_topic(),
                 LWT_PAYLOAD_ONLINE,
@@ -82,14 +88,11 @@ class Bridge:
                 retain=True,
             )
 
-            discovery: DiscoveryManager | None = None
             if self.config.homeassistant.enabled:
-                discovery = DiscoveryManager(self.config, mqtt)
-                self._discovery = discovery
-                await discovery.publish_bridge()
+                self._discovery = DiscoveryManager(self.config, mqtt)
+                await self._discovery.publish_bridge()
 
-            self._pchk = await self._connect_lcn()
-            stack.push_async_callback(self._pchk.async_close)
+            pchk.register_for_inputs(self._on_lcn_input)
 
             if self.config.homeassistant.scan_modules:
                 await self._discover_modules()
@@ -136,8 +139,6 @@ class Bridge:
 
     async def _publish(self, topic: str, payload: Any) -> None:
         """Publish a message to an MQTT topic."""
-        if self._mqtt is None:
-            return
         await self._mqtt.publish(
             topic,
             payload=str(payload),
@@ -156,26 +157,20 @@ class Bridge:
 
     # ---------- LCN ----------
 
-    async def _connect_lcn(self) -> PchkConnectionManager:
-        """Connect to the LCN-PCHK and set up input handling."""
+    def _pchk_client(self) -> pypck.connection.PchkConnectionManager:
+        """Create an PCHK client with the appropriate settings."""
         cfg = self.config.lcn
         settings = {
             "ACKNOWLEDGE": cfg.acknowledge_commands,
             "SK_NUM_TRIES": cfg.sk_num_tries,
             "DIM_MODE": lcn_defs.OutputPortDimMode[cfg.dim_mode],
         }
-        pchk = PchkConnectionManager(
+        return pypck.connection.PchkConnectionManager(
             cfg.host, cfg.port, cfg.username, cfg.password, settings=settings
         )
-        await pchk.async_connect()
-        pchk.register_for_inputs(self._on_lcn_input)
-        _LOG.info("Connected to LCN-PCHK at %s:%s", cfg.host, cfg.port)
-        return pchk
 
     async def _get_device_connection(self, lcn_addr: LcnAddr):
         """Get the module connection for the given LCN address."""
-        if self._pchk is None:
-            return None
         device_connection = self._pchk.get_device_connection(lcn_addr)
 
         await device_connection.serials_known()
@@ -199,13 +194,15 @@ class Bridge:
             publish = True
 
         module = self.modules[lcn_addr]
-        device_connection = await self._get_device_connection(lcn_addr)
 
-        if module.device_connection is None:
+        try:
+            device_connection = module.device_connection
+        except ValueError:
+            device_connection = await self._get_device_connection(lcn_addr)
             module.device_connection = device_connection
             publish = True
 
-        if module.name == "" and device_connection is not None:
+        if module.name == "":
             try:
                 module.name = lcn_addr.to_string()  # default name if request_name fails
                 name = await device_connection.request_name()
@@ -222,9 +219,6 @@ class Bridge:
 
     async def _discover_modules(self) -> None:
         """Discover modules on the LCN bus and populate the modules dictionary."""
-        if self._pchk is None:
-            return
-
         _LOG.info("Scanning LCN bus for modules …")
         await self._pchk.scan_modules()
         if not self._pchk.device_connections:

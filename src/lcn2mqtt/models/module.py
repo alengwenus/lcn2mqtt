@@ -136,7 +136,7 @@ class Module(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    device_connection: DeviceConnection | None = None
+    _device_connection: DeviceConnection | None = None
     address: LcnAddr
     serials: ModuleSerials = Field(default_factory=ModuleSerials)
     name: str = ""
@@ -246,3 +246,15 @@ class Module(BaseModel):
                 setattr(self, f"led{i}", states[i - 1])
                 changed[i - 1] = True
         return changed
+
+    @property
+    def device_connection(self) -> DeviceConnection:
+        """Get the device connection for this module."""
+        if self._device_connection is None:
+            raise ValueError("Device connection is not set for this module.")
+        return self._device_connection
+
+    @device_connection.setter
+    def device_connection(self, value: DeviceConnection) -> None:
+        """Set the device connection for this module."""
+        self._device_connection = value
