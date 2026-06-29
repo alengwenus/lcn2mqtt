@@ -1,0 +1,97 @@
+"""Tests for the relay handlers."""
+
+from __future__ import annotations
+
+import logging
+
+import pytest
+from pypck import inputs, lcn_defs
+
+from lcn2mqtt.handlers.relay import handle_relay_status, handle_set
+from lcn2mqtt.models.module import Module
+
+
+class TestHandleRelayStatus:
+    """Tests for the ModStatusRelays input handler."""
+
+    async def test_all_relays_reported_on_first_call(self, module: Module) -> None:
+        """All 8 relays produce a message on the very first call (all were unknown)."""
+        inp = inputs.ModStatusRelays(module.address, [False] * 8)
+        messages = await handle_relay_status(inp, module=module)
+        assert len(messages) == 8
+
+    async def test_changed_relays_produce_messages(self, module: Module) -> None:
+        """Only relays whose state actually changed emit a message."""
+        states = [True, False, True] + [False] * 5
+        inp = inputs.ModStatusRelays(module.address, states)
+        messages = await handle_relay_status(inp, module=module)
+        topics = {m.topic for m in messages}
+        assert "relay/1/state" in topics
+        assert "relay/3/state" in topics
+
+    @pytest.mark.parametrize(
+        "state, expected_payload",
+        [
+            (True, "on"),
+            (False, "off"),
+        ],
+    )
+    async def test_on_state_produces_on_payload(
+        self, module: Module, state: bool, expected_payload: str
+    ) -> None:
+        """A relay set to True publishes 'on'."""
+        inp = inputs.ModStatusRelays(module.address, [state] + [False] * 7)
+        messages = await handle_relay_status(inp, module=module)
+        msg = next(
+            (message for message in messages if message.topic == "relay/1/state"), None
+        )
+        assert msg is not None
+        assert msg.payload == expected_payload
+
+    async def test_no_change_produces_no_messages(self, module: Module) -> None:
+        """No messages are emitted when all relay states are unchanged."""
+        inp = inputs.ModStatusRelays(module.address, [True, False] + [False] * 6)
+        await handle_relay_status(inp, module=module)
+        messages = await handle_relay_status(inp, module=module)
+        assert messages == []
+
+
+class TestHandleRelaySet:
+    """Tests for the relay set MQTT command handler."""
+
+    @pytest.mark.parametrize(
+        "payload,expected_modifier",
+        [
+            ("on", lcn_defs.RelayStateModifier.ON),
+            ("off", lcn_defs.RelayStateModifier.OFF),
+            ("toggle", lcn_defs.RelayStateModifier.TOGGLE),
+        ],
+    )
+    async def test_set_command_calls_control_relays(
+        self,
+        module_with_conn: Module,
+        payload: str,
+        expected_modifier: lcn_defs.RelayStateModifier,
+    ) -> None:
+        """Sending a set command calls the device's control_relays method with the correct modifier."""
+        await handle_set("relay/1/set", payload, module=module_with_conn)
+        module_with_conn._device_connection.control_relays.assert_awaited_once()
+        states = module_with_conn._device_connection.control_relays.call_args.args[0]
+        assert states[0] == expected_modifier
+        assert all(s == lcn_defs.RelayStateModifier.NOCHANGE for s in states[1:])
+
+    async def test_invalid_payload_logs_warning(
+        self, module_with_conn: Module, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An unknown payload logs a warning and does not call the device."""
+        with caplog.at_level(logging.WARNING):
+            await handle_set("relay/1/set", "unknown", module=module_with_conn)
+        module_with_conn._device_connection.control_relays.assert_not_awaited()
+        assert any("relay" in record.message.lower() for record in caplog.records)
+
+    async def test_out_of_range_index_is_ignored(
+        self, module_with_conn: Module
+    ) -> None:
+        """A relay index outside 1-8 is silently ignored."""
+        await handle_set("relay/9/set", "on", module=module_with_conn)
+        module_with_conn._device_connection.control_relays.assert_not_awaited()

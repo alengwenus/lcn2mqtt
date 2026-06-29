@@ -32,7 +32,7 @@ async def handle_input(
     state_changed = output.update_state(
         OutputState.ON if inp.percent > 0 else OutputState.OFF
     )
-    output.update_brightness(inp.percent)
+    brightness_changed = output.update_brightness(inp.percent)
 
     messages: list[MqttMessage] = []
     if state_changed:
@@ -42,7 +42,8 @@ async def handle_input(
                 output.state.value if output.state is not None else None,
             )
         )
-    messages.append(MqttMessage(f"output/{idx}/brightness", f"{inp.percent:.2f}"))
+    if brightness_changed:
+        messages.append(MqttMessage(f"output/{idx}/brightness", f"{inp.percent:.2f}"))
     return messages
 
 

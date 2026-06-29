@@ -7,8 +7,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from pypck.lcn_addr import LcnAddr
+
 from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.models.config import AppConfig
+from lcn2mqtt.models.module import Module
 
 _FIXTURE_YAML = Path(__file__).parent / "fixtures" / "configuration.yaml"
 
@@ -47,3 +50,18 @@ def mock_device_conn() -> MagicMock:
     conn.serials.hardware_serial = 1
     conn.request_name = AsyncMock(return_value="TestModule")
     return conn
+
+
+@pytest.fixture
+def module() -> Module:
+    """A fresh Module instance with no device connection."""
+    return Module(address=LcnAddr(0, 7, False))
+
+
+@pytest.fixture
+def module_with_conn(module: Module) -> Module:
+    """Module with a mock async device connection (new firmware)."""
+    conn = AsyncMock()
+    conn.serials.software_serial = 0x180000  # > 0x170206 → new firmware
+    module._device_connection = conn
+    return module

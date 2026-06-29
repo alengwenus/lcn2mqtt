@@ -54,7 +54,7 @@ def input_handler(inp: inputs.Input):
         _INPUT_HANDLER_REGISTRY.append((inp, func))
 
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
 
         return wrapper
