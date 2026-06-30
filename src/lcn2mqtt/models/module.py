@@ -131,6 +131,32 @@ class Motor(BaseModel):
     tilt: MotorValue = None
 
 
+class MotorOutput(BaseModel):
+    """Motor output model for module motor outputs."""
+
+    model_config = ConfigDict(validate_assignment=True)
+
+    state: MotorState | None = None
+    reverse_time: lcn_defs.MotorReverseTime = lcn_defs.MotorReverseTime.RT70
+
+    @field_validator("reverse_time", mode="before")
+    @classmethod
+    def _validate_reverse_time(cls, v: str) -> lcn_defs.MotorReverseTime:
+        """Validate the motor reverse time."""
+        try:
+            reverse_time = lcn_defs.MotorReverseTime(v.upper())
+        except ValueError as exc:
+            raise ValueError(f"Invalid motor reverse time: {v}") from exc
+        return reverse_time
+
+    def update_state(self, state: MotorState) -> bool:
+        """Update the output state and return True if it changed."""
+        if self.state != state:
+            self.state = state
+            return True
+        return False
+
+
 class Module(BaseModel):
     """Model for an LCN module."""
 
@@ -159,6 +185,8 @@ class Module(BaseModel):
     motor2: Motor = Field(default_factory=Motor)
     motor3: Motor = Field(default_factory=Motor)
     motor4: Motor = Field(default_factory=Motor)
+
+    motor_outputs: MotorOutput = Field(default_factory=MotorOutput)
 
     led1: LedState | None = None
     led2: LedState | None = None
