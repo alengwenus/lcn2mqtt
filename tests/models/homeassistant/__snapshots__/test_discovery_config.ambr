@@ -1,0 +1,25 @@
+# serializer version: 1
+# name: TestManualComponents.test_manual_binary_sensor
+  BinarySensorComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='binsensor1', unique_id='lcntest_m000007_binary_sensor_binsensor1', name='Binsensor1', source=<BinSensorPort.BINSENSOR1: 0>, state_topic='lcntest/module/0/7/binsensor/1/state', payload_on='on', payload_off='off', platform='binary_sensor')
+# ---
+# name: TestManualComponents.test_manual_climate
+  ClimateComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='climate1', unique_id='lcntest_m000007_climate_climate1', name='Climate1', temperature=<Var.R1VARSETPOINT: 101>, current_temperature=<Var.VAR1ORTVAR: 0>, temperature_state_topic='lcntest/module/0/7/setpoint/1/state', temperature_command_topic='lcntest/module/0/7/setpoint/1/set', current_temperature_topic='lcntest/module/0/7/variable/1/state', mode_state_topic='lcntest/module/0/7/setpoint/1/locked', mode_command_topic='lcntest/module/0/7/setpoint/1/lock', mode_command_template='{{ "off" if value=="heat" else "on" }}', mode_state_template='{{ "heat" if value=="off" else "off" }}', modes=['off', 'heat'], platform='climate')
+# ---
+# name: TestManualComponents.test_manual_cover
+  CoverComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='motor1', unique_id='lcntest_m000007_cover_motor1', name='Motor1', target=<MotorPort.MOTOR1: 0>, state_topic='lcntest/module/0/7/motor/1/state', command_topic='lcntest/module/0/7/motor/1/set', platform='cover')
+# ---
+# name: TestManualComponents.test_manual_light
+  LightComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='output1', unique_id='lcntest_m000007_light_output1', name='Output1', target=<OutputPort.OUTPUT1: 0>, state_topic='lcntest/module/0/7/output/1/state', command_topic='lcntest/module/0/7/output/1/set', payload_on='on', payload_off='off', state_on='on', state_off='off', platform='light', brightness_state_topic='lcntest/module/0/7/output/1/brightness', brightness_command_topic='lcntest/module/0/7/output/1/set_brightness', brightness_scale=100)
+# ---
+# name: TestManualComponents.test_manual_number
+  NumberComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='var1', unique_id='lcntest_m000007_number_var1', name='Var1', target=<Var.VAR1ORTVAR: 0>, state_topic='lcntest/module/0/7/variable/1/state', command_topic='lcntest/module/0/7/variable/1/set', platform='number')
+# ---
+# name: TestManualComponents.test_manual_select
+  SelectComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='led1', unique_id='lcntest_m000007_select_led1', name='Led1', target=<LedPort.LED1: 0>, state_topic='lcntest/module/0/7/led/1/state', command_topic='lcntest/module/0/7/led/1/set', options=['off', 'on', 'blink', 'flicker'], platform='select')
+# ---
+# name: TestManualComponents.test_manual_sensor
+  SensorComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='var1', unique_id='lcntest_m000007_sensor_var1', name='Var1', source=<Var.VAR1ORTVAR: 0>, state_topic='lcntest/module/0/7/variable/1/state', platform='sensor')
+# ---
+# name: TestManualComponents.test_manual_switch
+  SwitchComponent(address=LcnAddr(seg_id=0, addr_id=7, is_group=False), basetopic='lcntest', identifier='relay1', unique_id='lcntest_m000007_switch_relay1', name='Relay1', target=<RelayPort.RELAY1: 0>, state_topic='lcntest/module/0/7/relay/1/state', command_topic='lcntest/module/0/7/relay/1/set', payload_on='on', payload_off='off', state_on='on', state_off='off', platform='switch')
+# ---
