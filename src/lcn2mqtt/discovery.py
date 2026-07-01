@@ -11,8 +11,7 @@ from pypck.lcn_addr import LcnAddr
 
 from lcn2mqtt import __version__
 
-from .models.config import AppConfig
-from .models.module import Module
+from .models.config import AppConfig, DeviceConfig
 
 _LOG = logging.getLogger(__name__)
 
@@ -115,34 +114,35 @@ class DiscoveryManager:
 
     # ---------- public API ----------
 
-    async def publish_module(self, lcn_addr: LcnAddr, module: Module) -> None:
+    async def publish_module(self, lcn_addr: LcnAddr, module: DeviceConfig) -> None:
         """Publish a device-discovery entry for one LCN module."""
         addr_str = lcn_addr.to_string()
         display_name = module.name.strip() if module.name else f"LCN {addr_str.upper()}"
 
         cmps: dict[str, Any] = {}
 
-        for identifier, cmp in module.homeassistant.components.items():
-            cmps[identifier] = cmp.discovery_info()
+        if module.homeassistant is not None:
+            for identifier, cmp in module.homeassistant.components.items():
+                cmps[identifier] = cmp.discovery_info()
 
-        await self._publish_device(
-            f"{self._config.mqtt.base_topic}_{addr_str}",
-            {
-                "dev": {
-                    "identifiers": [f"{self._config.mqtt.base_topic}_{addr_str}"],
-                    "name": display_name,
-                    "manufacturer": "Issendorff",
-                    "model": module.serials.type.description,
-                    "serial_number": f"0x{module.serials.hardware:02X}",
-                    "sw_version": f"0x{module.serials.software:02X}",
-                    "hw_version": addr_str,
-                    "via_device": self._bridge_identifier(),
+            await self._publish_device(
+                f"{self._config.mqtt.base_topic}_{addr_str}",
+                {
+                    "dev": {
+                        "identifiers": [f"{self._config.mqtt.base_topic}_{addr_str}"],
+                        "name": display_name,
+                        "manufacturer": "Issendorff",
+                        "model": module.serials.type.description,
+                        "serial_number": f"0x{module.serials.hardware:02X}",
+                        "sw_version": f"0x{module.serials.software:02X}",
+                        "hw_version": addr_str,
+                        "via_device": self._bridge_identifier(),
+                    },
+                    "availability": self._availability(),
+                    "components": cmps,
                 },
-                "availability": self._availability(),
-                "components": cmps,
-            },
-        )
-        _LOG.info("Discovery: module published: %s", addr_str)
+            )
+            _LOG.info("Discovery: module published: %s", addr_str)
 
     async def publish_bridge(self) -> None:
         """Publish a device-discovery entry for the bridge itself."""
@@ -171,7 +171,7 @@ class DiscoveryManager:
         )
         _LOG.info("Discovery: bridge published")
 
-    async def publish_modules(self, modules: dict[LcnAddr, Module]) -> None:
+    async def publish_modules(self, modules: dict[LcnAddr, DeviceConfig]) -> None:
         """Scan LCN modules (optional) and publish module discovery entries."""
         for lcn_addr, module in modules.items():
             if lcn_addr.is_group:

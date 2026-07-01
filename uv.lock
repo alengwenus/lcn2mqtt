@@ -149,7 +149,7 @@ dev = [
 requires-dist = [
     { name = "aiomqtt", specifier = ">=2.3.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
-    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pydantic", extras = ["mypy"], specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.1" },
     { name = "pypck", specifier = ">=0.9.14" },
     { name = "pyyaml", specifier = ">=6.0" },

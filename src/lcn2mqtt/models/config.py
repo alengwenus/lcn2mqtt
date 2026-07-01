@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 from pydantic import (
@@ -30,7 +31,9 @@ from lcn2mqtt.models.module import Module
 _LOG = logging.getLogger(__name__)
 
 
-def flatten_with_values(data: dict[str, Any], prefix="") -> list[tuple[str, Any]]:
+def flatten_with_values(
+    data: dict[str, Any], prefix: str = ""
+) -> list[tuple[str, Any]]:
     """Flatten a nested dictionary into a list of (path, value) pairs."""
     items: list[tuple[str, Any]] = []
     for key, value in data.items():
@@ -48,9 +51,7 @@ class DeviceConfig(Module):
 
     model_config = ConfigDict(extra="forbid")
 
-    homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
-        default_factory=HomeAssistantModuleDiscoveryConfig
-    )
+    homeassistant: HomeAssistantModuleDiscoveryConfig | None = Field(default=None)
 
     @model_validator(mode="before")
     @classmethod
@@ -120,16 +121,19 @@ class AppConfig(BaseSettings):
 
     identifier: str = "lcn2mqtt"
     log_level: str = "INFO"
-    lcn: LcnConfig = Field(default_factory=LcnConfig)
-    mqtt: MqttConfig = Field(default_factory=MqttConfig)
+    lcn: LcnConfig  # = Field(default_factory=LcnConfig)
+    mqtt: MqttConfig  # = Field(default_factory=MqttConfig)
     devices: dict[LcnAddr, DeviceConfig] = Field(default_factory=dict)
     homeassistant: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
 
     def __new__(
-        cls, yaml_file: str | os.PathLike = "data/configuration.yaml", *args, **kwargs
-    ):
+        cls,
+        yaml_file: str | os.PathLike[str] = "data/configuration.yaml",
+        *args: Any,
+        **kwargs: Any,
+    ) -> AppConfig:
         """Pass the YAML file path to the base class for loading."""
-        cls.model_config["yaml_file"] = yaml_file
+        cls.model_config["yaml_file"] = Path(yaml_file)
         return super().__new__(cls, *args, **kwargs)
 
     @field_validator("log_level", mode="before")
@@ -143,7 +147,8 @@ class AppConfig(BaseSettings):
         """Inject the global base_topic into device configs."""
         self.mqtt._base_topic = self.identifier
         for device in self.devices.values():
-            device.homeassistant.inject_base_topic(self.identifier)
+            if device.homeassistant is not None:
+                device.homeassistant.inject_base_topic(self.identifier)
         return self
 
     @model_validator(mode="before")
@@ -214,7 +219,7 @@ class AppConfig(BaseSettings):
 
 
 def load_config(
-    yaml_file: str | os.PathLike = "data/configuration.yaml",
+    yaml_file: str = "data/configuration.yaml",
 ) -> AppConfig:
     """Load configuration from the specified YAML file and environment variables."""
     return AppConfig(yaml_file=yaml_file)

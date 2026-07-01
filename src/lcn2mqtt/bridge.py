@@ -11,11 +11,12 @@ import aiomqtt
 import pypck
 from pypck import inputs, lcn_defs
 from pypck.connection import PchkConnectionManager
+from pypck.device import DeviceConnection
 from pypck.lcn_addr import LcnAddr
 
 from .discovery import DiscoveryManager
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
-from .models.config import AppConfig
+from .models.config import AppConfig, DeviceConfig
 from .models.module import Module
 
 _LOG = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class Bridge:
     def __init__(self, config: AppConfig) -> None:
         """Initialize the Bridge with the application configuration."""
         self.config = config
-        self.modules: dict[LcnAddr, Module] = config.devices
+        self.modules: dict[LcnAddr, DeviceConfig] = config.devices
         self._discovery: DiscoveryManager | None = None
 
     # ---------- topic helpers ----------
@@ -170,7 +171,7 @@ class Bridge:
             cfg.host, cfg.port, cfg.username, cfg.password, settings=settings
         )
 
-    async def _get_device_connection(self, lcn_addr: LcnAddr):
+    async def _get_device_connection(self, lcn_addr: LcnAddr) -> DeviceConnection:
         """Get the module connection for the given LCN address."""
         device_connection = self._pchk.get_device_connection(lcn_addr)
 
@@ -183,7 +184,7 @@ class Bridge:
             )
         return device_connection
 
-    async def ensure_module_complete(self, lcn_addr: LcnAddr) -> Module:
+    async def ensure_module_complete(self, lcn_addr: LcnAddr) -> DeviceConfig:
         """Ensure a Module exists for the given LCN address and return it."""
         publish: bool = False
         if lcn_addr not in self.modules:

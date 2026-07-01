@@ -207,11 +207,11 @@ class Module(BaseModel):
     threshold43: Variable = Field(default_factory=Variable)
     threshold44: Variable = Field(default_factory=Variable)
 
-    threshold1 = alias_property("threshold11")
-    threshold2 = alias_property("threshold12")
-    threshold3 = alias_property("threshold13")
-    threshold4 = alias_property("threshold14")
-    threshold5 = alias_property("threshold15")
+    threshold1: Variable = alias_property("threshold11")  # type: ignore[assignment]
+    threshold2: Variable = alias_property("threshold12")  # type: ignore[assignment]
+    threshold3: Variable = alias_property("threshold13")  # type: ignore[assignment]
+    threshold4: Variable = alias_property("threshold14")  # type: ignore[assignment]
+    threshold5: Variable = alias_property("threshold15")  # type: ignore[assignment]
 
     binary1: bool | None = None
     binary2: bool | None = None

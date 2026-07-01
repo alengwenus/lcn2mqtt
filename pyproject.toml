@@ -5,7 +5,7 @@ description = "Bridge between LCN (Local Control Network) and MQTT"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "pydantic>=2.13.4",
+    "pydantic[mypy]>=2.13.4",
     "pypck>=0.9.14",
     "aiomqtt>=2.3.0",
     "pydantic-settings>=2.14.1",
@@ -43,6 +43,7 @@ cache-dir = ".cache/ruff"
 
 [tool.mypy]
 cache_dir = ".cache/mypy"
+plugins = ["pydantic.mypy"]
 
 [tool.ruff.lint]
 select = [

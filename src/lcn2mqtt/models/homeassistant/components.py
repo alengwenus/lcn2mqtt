@@ -27,7 +27,7 @@ class BaseComponentModel(BaseModel):
     name: str | None = Field(default=None)
 
     # platform is set in subclasses and used for validation
-    platform: Literal[None] = Field(..., alias="p")  # type: ignore[assignment]
+    platform: Literal[None] = Field(..., alias="p")
 
     @property
     def prefix(self) -> str:
@@ -93,7 +93,7 @@ class SwitchComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         idx = int(self.target.value) + 1
         if isinstance(self.target, lcn_defs.RelayPort):
@@ -121,7 +121,7 @@ class LightComponent(SwitchComponent):
 
     platform: Literal["light"] = Field(default="light", alias="p")  # type: ignore[assignment]
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         super().set_topics()
 
@@ -161,7 +161,7 @@ class BinarySensorComponent(BaseComponentModel):
                 raise ValueError(f"Invalid source '{value}'.")
         return value
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         self.state_topic = set_if_none(
             self.state_topic,
@@ -185,14 +185,13 @@ class SensorComponent(BaseComponentModel):
         if isinstance(value, str):
             value_upper = value.upper()
             if value_upper in lcn_defs.Var.__members__:
-                var = lcn_defs.Var[value_upper]
+                return lcn_defs.Var[value_upper]
             elif value_upper in lcn_defs.LedPort.__members__:
-                var = lcn_defs.LedPort[value_upper]
-            else:
-                raise ValueError(f"Invalid source '{value}'.")
-        return var
+                return lcn_defs.LedPort[value_upper]
+            raise ValueError(f"Invalid source '{value}'.")
+        return value
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         if self.source in set(lcn_defs.Var.variables()):
             idx = lcn_defs.Var.to_var_id(self.source) + 1
@@ -239,7 +238,7 @@ class NumberComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return var
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         if self.target in set(lcn_defs.Var.variables()):
             idx = lcn_defs.Var.to_var_id(self.target) + 1
@@ -291,7 +290,7 @@ class SelectComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         if isinstance(self.target, lcn_defs.LedPort):
             idx = int(self.target.value) + 1
@@ -325,7 +324,7 @@ class CoverComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         if isinstance(self.target, lcn_defs.MotorPort):
             idx = int(self.target.value) + 1
@@ -378,7 +377,7 @@ class ClimateComponent(BaseComponentModel):
 
         return data
 
-    def set_topics(self):
+    def set_topics(self) -> None:
         """Set default topics."""
         temperature_idx = lcn_defs.Var.to_set_point_id(self.temperature) + 1
         self.temperature_state_topic = set_if_none(
@@ -403,12 +402,3 @@ class ClimateComponent(BaseComponentModel):
         self.mode_command_topic = set_if_none(
             self.mode_command_topic, f"{self.prefix}/setpoint/{mode_idx}/lock"
         )
-
-
-if __name__ == "__main__":
-    lcn_addr = LcnAddr(0, 7, False)
-    base_topic = "lcn2mqtt"
-    switch = SwitchComponent(
-        address=lcn_addr, base_topic=base_topic, target="relay1", identifier="test"
-    )
-    # print(switch.model_dump_json(exclude_none=True, indent=2))

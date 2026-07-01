@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
 
 from pypck import inputs, lcn_defs
@@ -21,7 +21,7 @@ Publish = Callable[[str, Any], Awaitable[None]]
 @input_handler(inputs.ModStatusRelays)
 async def handle_relays_status(
     inp: inputs.ModStatusRelays, module: Module
-) -> list[MqttMessage]:
+) -> AsyncGenerator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
     states = [MotorState.OPEN] * 4
     for idx in range(4):
@@ -32,11 +32,9 @@ async def handle_relays_status(
         elif inp.is_assumed_closed(idx):
             states[idx] = MotorState.CLOSED
     changed = module.update_motors(states)
-    messages: list[MqttMessage] = []
     for i, did_change in enumerate(changed, start=1):
         if did_change:
-            messages.append(MqttMessage(f"motor_relays/{i}/state", states[i - 1].value))
-    return messages
+            yield MqttMessage(f"motor_relays/{i}/state", states[i - 1].value)
 
 
 @mqtt_handler("motor_relays/+/set")

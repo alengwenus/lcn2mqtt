@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
 
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
 
-from ..models.module import Module
+from ..models.module import LedState, Module
 
 _LOG = logging.getLogger(__name__)
 
@@ -17,15 +18,13 @@ _LOG = logging.getLogger(__name__)
 @input_handler(inputs.ModStatusLedsAndLogicOps)
 async def handle_input(
     inp: inputs.ModStatusLedsAndLogicOps, module: Module
-) -> list[MqttMessage]:
+) -> AsyncGenerator[MqttMessage]:
     """Handle an LED status input, update the module state, and publish any changes."""
-    states = [state.name.lower() for state in inp.states_led]
+    states = [LedState(state.name.lower()) for state in inp.states_led]
     changed = module.update_leds(states)
-    messages: list[MqttMessage] = []
     for idx, did_change in enumerate(changed, start=1):
         if did_change:
-            messages.append(MqttMessage(f"led/{idx}/state", states[idx - 1]))
-    return messages
+            yield MqttMessage(f"led/{idx}/state", states[idx - 1].value)
 
 
 @mqtt_handler("led/+/set")
