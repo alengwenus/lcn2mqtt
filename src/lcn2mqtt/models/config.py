@@ -73,6 +73,12 @@ class LcnConfig(BaseModel):
     sk_num_tries: int = 0
     acknowledge_commands: bool = False
 
+    @field_validator("dim_mode", mode="before")
+    @classmethod
+    def _upper(cls, v: str) -> str:
+        """Convert dim mode to uppercase."""
+        return v.upper()
+
 
 class MqttConfig(BaseModel):
     """MQTT connection and topic configuration."""
@@ -103,10 +109,10 @@ class AppConfig(BaseSettings):
     """Main application configuration, including LCN and MQTT settings."""
 
     model_config = SettingsConfigDict(
-        env_prefix="LCN2MQTT_",
+        env_prefix="LCN2MQTT__",
         env_file=".env",
         env_file_encoding="utf-8",
-        env_nested_delimiter="_",
+        env_nested_delimiter="__",
         case_sensitive=False,
         extra="ignore",
     )
