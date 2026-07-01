@@ -32,7 +32,7 @@ class TestHandleOutputInput:
     ) -> None:
         """The ON/OFF state is published based on the brightness value."""
         inp = inputs.ModStatusOutput(module.address, 0, brightness)
-        messages = await handle_input(inp, module=module)
+        messages = list(handle_input(inp, module=module))
         state_msg = next(
             message for message in messages if message.topic == "output/1/state"
         )
@@ -41,7 +41,7 @@ class TestHandleOutputInput:
     async def test_brightness_message_always_published(self, module: Module) -> None:
         """A brightness message is always included regardless of state change."""
         inp = inputs.ModStatusOutput(module.address, 0, 50.0)
-        messages = await handle_input(inp, module=module)
+        messages = list(handle_input(inp, module=module))
         brightness_msg = next(
             message for message in messages if message.topic == "output/1/brightness"
         )
@@ -51,7 +51,7 @@ class TestHandleOutputInput:
         """No state message is emitted when the ON/OFF state does not change."""
         module.output1.state = OutputState.ON
         inp = inputs.ModStatusOutput(module.address, 0, 80.0)
-        messages = await handle_input(inp, module=module)
+        messages = list(handle_input(inp, module=module))
         assert not any(message.topic == "output/1/state" for message in messages)
 
     async def test_no_brightness_message_when_brightness_unchanged(
@@ -60,7 +60,7 @@ class TestHandleOutputInput:
         """No brightness message is emitted when the brightness does not change."""
         module.output1.brightness = 80.0
         inp = inputs.ModStatusOutput(module.address, 0, 80.0)
-        messages = await handle_input(inp, module=module)
+        messages = list(handle_input(inp, module=module))
         assert not any(message.topic == "output/1/brightness" for message in messages)
 
 

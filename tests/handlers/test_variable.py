@@ -37,20 +37,20 @@ class TestHandleVariableInput:
     async def test_new_value_produces_state_message(self, module: Module) -> None:
         """A new variable value publishes a state message."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        messages = await handle_variable_input(inp, module=module)
+        messages = list(handle_variable_input(inp, module=module))
         assert any(message.topic == "variable/1/state" for message in messages)
 
     async def test_unchanged_value_produces_no_message(self, module: Module) -> None:
         """Identical consecutive values yield no messages."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        await handle_variable_input(inp, module=module)
-        messages = await handle_variable_input(inp, module=module)
+        list(handle_variable_input(inp, module=module))
+        messages = list(handle_variable_input(inp, module=module))
         assert messages == []
 
     async def test_non_variable_type_returns_empty(self, module: Module) -> None:
         """A setpoint var type is ignored by the variable handler."""
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_1000)
-        messages = await handle_variable_input(inp, module=module)
+        messages = list(handle_variable_input(inp, module=module))
         assert messages == []
 
 
@@ -65,13 +65,13 @@ class TestHandleSetpointInput:
     async def test_new_value_produces_state_message(self, module: Module) -> None:
         """A new setpoint value publishes a state message."""
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_1000)
-        messages = await handle_setpoint_input(inp, module=module)
+        messages = list(handle_setpoint_input(inp, module=module))
         assert any(message.topic == "setpoint/1/state" for message in messages)
 
     async def test_locked_value_produces_locked_message(self, module: Module) -> None:
         """A locked setpoint value publishes a locked message with payload 'on'."""
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_LOCKED)
-        messages = await handle_setpoint_input(inp, module=module)
+        messages = list(handle_setpoint_input(inp, module=module))
         locked_msg = next(
             (message for message in messages if message.topic == "setpoint/1/locked"),
             None,
@@ -86,7 +86,7 @@ class TestHandleSetpointInput:
         # First set as locked so the unlock triggers a change
         module.setpoint1.locked = True
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_1000)
-        messages = await handle_setpoint_input(inp, module=module)
+        messages = list(handle_setpoint_input(inp, module=module))
         locked_msg = next(
             (message for message in messages if message.topic == "setpoint/1/locked"),
             None,
@@ -97,7 +97,7 @@ class TestHandleSetpointInput:
     async def test_non_setpoint_type_returns_empty(self, module: Module) -> None:
         """A plain variable var type is ignored by the setpoint handler."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        messages = await handle_setpoint_input(inp, module=module)
+        messages = list(handle_setpoint_input(inp, module=module))
         assert messages == []
 
 
@@ -112,7 +112,7 @@ class TestHandleThresholdInput:
     async def test_new_value_produces_state_message(self, module: Module) -> None:
         """A new threshold value publishes a state message."""
         inp = inputs.ModStatusVar(module.address, THRESHOLD11, NATIVE_1000)
-        messages = await handle_threshold_input(inp, module=module)
+        messages = list(handle_threshold_input(inp, module=module))
         assert any(m.topic == "threshold/1/1/state" for m in messages)
 
     async def test_locked_threshold_produces_locked_on_message(
@@ -120,7 +120,7 @@ class TestHandleThresholdInput:
     ) -> None:
         """A locked threshold publishes locked='on'."""
         inp = inputs.ModStatusVar(module.address, THRESHOLD11, NATIVE_LOCKED)
-        messages = await handle_threshold_input(inp, module=module)
+        messages = list(handle_threshold_input(inp, module=module))
         locked_msg = next(
             (
                 message
@@ -139,7 +139,7 @@ class TestHandleThresholdInput:
         # First set as locked so the unlock triggers a change
         module.threshold11.locked = True
         inp = inputs.ModStatusVar(module.address, THRESHOLD11, NATIVE_1000)
-        messages = await handle_threshold_input(inp, module=module)
+        messages = list(handle_threshold_input(inp, module=module))
         locked_msg = next(
             (
                 message
@@ -154,7 +154,7 @@ class TestHandleThresholdInput:
     async def test_non_threshold_type_returns_empty(self, module: Module) -> None:
         """A plain variable var type is ignored by the threshold handler."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        messages = await handle_threshold_input(inp, module=module)
+        messages = list(handle_threshold_input(inp, module=module))
         assert messages == []
 
 

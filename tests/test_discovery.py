@@ -18,7 +18,7 @@ from lcn2mqtt.models.config import AppConfig, DeviceConfig
 
 @pytest.fixture
 def mqtt() -> AsyncMock:
-    """A mock aiomqtt Client."""
+    """Return a mock aiomqtt Client."""
     client = AsyncMock()
     client.publish = AsyncMock()
     return client
@@ -26,18 +26,19 @@ def mqtt() -> AsyncMock:
 
 @pytest.fixture
 def manager(config: AppConfig, mqtt: AsyncMock) -> DiscoveryManager:
-    """A DiscoveryManager backed by the test config and a mocked MQTT client."""
+    """Return a DiscoveryManager backed by the test config and a mocked MQTT client."""
     return DiscoveryManager(config, mqtt)
 
 
 @pytest.fixture
 def module_addr() -> LcnAddr:
+    """Return a sample module address."""
     return LcnAddr(0, 7, False)
 
 
 @pytest.fixture
 def device(module_addr: LcnAddr) -> DeviceConfig:
-    """A minimal DeviceConfig with default serials."""
+    """Return a minimal DeviceConfig with default serials."""
     dev = DeviceConfig(address=module_addr)
     dev.homeassistant.inject_base_topic("lcntest")
     return dev

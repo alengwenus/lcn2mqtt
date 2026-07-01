@@ -23,18 +23,21 @@ PREFIX = f"{BASE_TOPIC}/module/0/7"
 
 
 def make_switch(target: str, **kwargs) -> SwitchComponent:
+    """Return a SwitchComponent with the given target and kwargs."""
     cmp = SwitchComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_light(target: str, **kwargs) -> LightComponent:
+    """Return a LightComponent with the given target and kwargs."""
     cmp = LightComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_binary_sensor(source: str, **kwargs) -> BinarySensorComponent:
+    """Return a BinarySensorComponent with the given source and kwargs."""
     cmp = BinarySensorComponent(
         address=ADDR, identifier=source, source=source, **kwargs
     )
@@ -43,24 +46,28 @@ def make_binary_sensor(source: str, **kwargs) -> BinarySensorComponent:
 
 
 def make_sensor(source: str, **kwargs) -> SensorComponent:
+    """Return a SensorComponent with the given source and kwargs."""
     cmp = SensorComponent(address=ADDR, identifier=source, source=source, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_number(target: str, **kwargs) -> NumberComponent:
+    """Return a NumberComponent with the given target and kwargs."""
     cmp = NumberComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_select(target: str, **kwargs) -> SelectComponent:
+    """Return a SelectComponent with the given target and kwargs."""
     cmp = SelectComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_cover(target: str, **kwargs) -> CoverComponent:
+    """Return a CoverComponent with the given target and kwargs."""
     cmp = CoverComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp

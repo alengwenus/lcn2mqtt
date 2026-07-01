@@ -27,7 +27,7 @@ class TestHandleLedInput:
     async def test_all_leds_reported_on_first_call(self, module: Module) -> None:
         """All 12 LEDs produce a message on the very first call (all were unknown)."""
         inp = _make_led_inp(_ALL_OFF, module)
-        messages = await handle_input(inp, module=module)
+        messages = list(handle_input(inp, module=module))
         assert len(messages) == 12
 
     async def test_all_leds_covered_on_first_call(self, module: Module) -> None:
@@ -38,7 +38,7 @@ class TestHandleLedInput:
             + [lcn_defs.LedStatus.BLINK] * 3
             + [lcn_defs.LedStatus.FLICKER] * 3
         )
-        messages = await handle_input(_make_led_inp(states, module), module=module)
+        messages = list(handle_input(_make_led_inp(states, module), module=module))
         assert all(
             message.topic == f"led/{idx + 1}/state"
             and message.payload == state.name.lower()
@@ -47,9 +47,9 @@ class TestHandleLedInput:
 
     async def test_changed_leds_produce_messages(self, module: Module) -> None:
         """Only LEDs whose state changed produce a message."""
-        await handle_input(_make_led_inp(_ALL_OFF, module), module=module)
+        list(handle_input(_make_led_inp(_ALL_OFF, module), module=module))
         states = [lcn_defs.LedStatus.ON] + [lcn_defs.LedStatus.OFF] * 11
-        messages = await handle_input(_make_led_inp(states, module), module=module)
+        messages = list(handle_input(_make_led_inp(states, module), module=module))
         assert len(messages) == 1
         assert messages[0].topic == "led/1/state"
         assert messages[0].payload == "on"
@@ -57,8 +57,8 @@ class TestHandleLedInput:
     async def test_no_change_produces_no_messages(self, module: Module) -> None:
         """Identical consecutive inputs yield no messages."""
         inp = _make_led_inp(_ALL_OFF, module)
-        await handle_input(inp, module=module)
-        messages = await handle_input(inp, module=module)
+        list(handle_input(inp, module=module))
+        messages = list(handle_input(inp, module=module))
         assert messages == []
 
 

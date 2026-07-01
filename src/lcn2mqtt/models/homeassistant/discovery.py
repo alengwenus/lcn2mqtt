@@ -23,21 +23,17 @@ from .components import (
     SwitchComponent,
 )
 
-BINSENSORS = tuple(key.lower() for key in lcn_defs.BinSensorPort.__members__.keys())
-OUTPUTS = tuple(key.lower() for key in lcn_defs.OutputPort.__members__.keys())
-RELAYS = tuple(key.lower() for key in lcn_defs.RelayPort.__members__.keys())
-MOTORS = tuple(key.lower() for key in lcn_defs.MotorPort.__members__.keys())
-LEDS = tuple(key.lower() for key in lcn_defs.LedPort.__members__.keys())
-VARS = tuple(key.lower() for key in lcn_defs.Var.__members__.keys())
+BINSENSORS = tuple(key.lower() for key in lcn_defs.BinSensorPort.__members__)
+OUTPUTS = tuple(key.lower() for key in lcn_defs.OutputPort.__members__)
+RELAYS = tuple(key.lower() for key in lcn_defs.RelayPort.__members__)
+MOTORS = tuple(key.lower() for key in lcn_defs.MotorPort.__members__)
+LEDS = tuple(key.lower() for key in lcn_defs.LedPort.__members__)
+VARS = tuple(key.lower() for key in lcn_defs.Var.__members__)
 
 STANDARD_COMPONENTS = (
     lcn_defs.OutputPort.OUTPUT1.name.lower(),
     lcn_defs.OutputPort.OUTPUT2.name.lower(),
-    *(
-        key.lower()
-        for key in lcn_defs.RelayPort.__members__.keys()
-        if key.startswith("RELAY")
-    ),
+    *(key.lower() for key in lcn_defs.RelayPort.__members__ if key.startswith("RELAY")),
 )
 
 ALL_COMPONENTS = BINSENSORS + OUTPUTS + RELAYS + MOTORS + LEDS + VARS

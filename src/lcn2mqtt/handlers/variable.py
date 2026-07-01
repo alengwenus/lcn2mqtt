@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
 from itertools import chain
 from typing import Any
 
@@ -23,23 +23,21 @@ Publish = Callable[[str, Any], Awaitable[None]]
 
 
 @input_handler(inputs.ModStatusVar)
-async def handle_variable_input(
+def handle_variable_input(
     inp: inputs.ModStatusVar, module: Module
-) -> list[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle a variable status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.variables():
-        return []
+        return
     idx = lcn_defs.Var.to_var_id(inp.var) + 1
     variable = getattr(module, f"variable{idx}", None)
     if variable is None:
         _LOG.warning("Received variable input for invalid variable index %d", idx)
-        return []
+        return
     unit = variable.unit
     value_unit = inp.value.to_var_unit(unit)
-    messages: list[MqttMessage] = []
     if variable.update_value(int(inp.value.to_native())):
-        messages.append(MqttMessage(f"variable/{idx}/state", value_unit))
-    return messages
+        yield MqttMessage(f"variable/{idx}/state", str(value_unit))
 
 
 @mqtt_handler("variable/+/set", "variable/+/shift")
@@ -89,30 +87,26 @@ async def handle_variable_change(
 
 
 @input_handler(inputs.ModStatusVar)
-async def handle_setpoint_input(
+def handle_setpoint_input(
     inp: inputs.ModStatusVar, module: Module
-) -> list[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle a setpoint status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.set_points():
-        return []
+        return
     idx = lcn_defs.Var.to_set_point_id(inp.var) + 1
     variable = getattr(module, f"setpoint{idx}", None)
     if variable is None:
         _LOG.warning("Received variable input for invalid setpoint index %d", idx)
-        return []
+        return
     unit = variable.unit
     value_unit = inp.value.to_var_unit(unit, is_lockable_regulator_source=True)
-    messages: list[MqttMessage] = []
     if variable.update_value(int(inp.value.to_native())):
-        messages.append(MqttMessage(f"setpoint/{idx}/state", value_unit))
+        yield MqttMessage(f"setpoint/{idx}/state", str(value_unit))
     if variable.update_locked(inp.value.is_locked_regulator()):
-        messages.append(
-            MqttMessage(
-                f"setpoint/{idx}/locked",
-                "on" if inp.value.is_locked_regulator() else "off",
-            )
+        yield MqttMessage(
+            f"setpoint/{idx}/locked",
+            "on" if inp.value.is_locked_regulator() else "off",
         )
-    return messages
 
 
 @mqtt_handler(
@@ -172,12 +166,12 @@ async def handle_setpoint_change(
 
 
 @input_handler(inputs.ModStatusVar)
-async def handle_threshold_input(
+def handle_threshold_input(
     inp: inputs.ModStatusVar, module: Module
-) -> list[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle a threshold status input, update the module state, and publish any changes."""
     if inp.var not in list(chain.from_iterable(lcn_defs.Var.thresholds())):
-        return []
+        return
 
     register = lcn_defs.Var.to_thrs_register_id(inp.var) + 1
     idx = lcn_defs.Var.to_thrs_id(inp.var) + 1
@@ -186,24 +180,20 @@ async def handle_threshold_input(
         _LOG.warning(
             "Received threshold input for invalid threshold %d-%d", register, idx
         )
-        return []
+        return
 
     # value_native = int(inp.value.to_native())
     unit = threshold.unit
     value_unit = inp.value.to_var_unit(unit, is_lockable_regulator_source=True)
-    messages: list[MqttMessage] = []
     if threshold.update_value(
         int(inp.value.to_native())
     ):  # and (value_native != 0xFFFF):
-        messages.append(MqttMessage(f"threshold/{register}/{idx}/state", value_unit))
+        yield MqttMessage(f"threshold/{register}/{idx}/state", str(value_unit))
     if threshold.update_locked(inp.value.is_locked_threshold()):
-        messages.append(
-            MqttMessage(
-                f"threshold/{register}/{idx}/locked",
-                "on" if inp.value.is_locked_threshold() else "off",
-            )
+        yield MqttMessage(
+            f"threshold/{register}/{idx}/locked",
+            "on" if inp.value.is_locked_threshold() else "off",
         )
-    return messages
 
 
 @mqtt_handler(

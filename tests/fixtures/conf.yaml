@@ -1,0 +1,17 @@
+identifier: lcntest
+log_level: "debug"
+
+lcn:
+  host: 192.168.2.10
+  port: 4114
+  username: lcn
+  password: lcn
+  dim_mode: steps200
+  sk_num_tries: 0
+  acknowledge_commands: false
+
+mqtt:
+  host: mqtt.local
+  port: 1883
+  username: mqtt
+  password: mqtt

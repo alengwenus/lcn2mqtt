@@ -24,7 +24,7 @@ class TestHandleMotorStatus:
     async def test_all_relays_reported_on_first_call(self, module: Module) -> None:
         """All 4 motors produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
-        messages = await handle_relays_status(inp, module=module)
+        messages = list(handle_relays_status(inp, module=module))
         assert len(messages) == 4
 
     @pytest.mark.parametrize(
@@ -47,7 +47,7 @@ class TestHandleMotorStatus:
         inp = inputs.ModStatusRelays(
             module.address, _relay_states(motor0_on=motor0_on, motor0_down=motor0_down)
         )
-        messages = await handle_relays_status(inp, module=module)
+        messages = list(handle_relays_status(inp, module=module))
         msg = next(
             (
                 message
@@ -62,8 +62,8 @@ class TestHandleMotorStatus:
     async def test_no_change_produces_no_messages(self, module: Module) -> None:
         """No messages are emitted when motor states are unchanged."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
-        await handle_relays_status(inp, module=module)
-        messages = await handle_relays_status(inp, module=module)
+        list(handle_relays_status(inp, module=module))
+        messages = list(handle_relays_status(inp, module=module))
         assert messages == []
 
 
