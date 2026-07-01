@@ -313,7 +313,7 @@ class TestDispatchInput:
         inp = MagicMock()
         inp.physical_source_addr = addr
 
-        async def fake_dispatch(inp, **kwargs):
+        def fake_dispatch(inp, **kwargs):
             yield MqttMessage(topic="output/1/state", payload="on")
 
         with patch("lcn2mqtt.bridge.dispatch_input", side_effect=fake_dispatch):

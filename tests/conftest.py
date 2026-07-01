@@ -12,7 +12,7 @@ from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.module import Module
 
-_FIXTURE_YAML = Path(__file__).parent / "fixtures" / "configuration.yaml"
+_FIXTURE_YAML = Path(__file__).parent / "fixtures" / "conf.yaml"
 
 
 def make_config() -> AppConfig:
