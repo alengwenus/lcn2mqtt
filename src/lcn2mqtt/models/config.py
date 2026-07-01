@@ -89,12 +89,12 @@ class MqttConfig(BaseModel):
     password: str | None = None
     qos: int = 0
 
-    _basetopic: str = PrivateAttr(default="lcn2mqtt")
+    _base_topic: str = PrivateAttr(default="lcn2mqtt")
 
     @property
-    def basetopic(self) -> str:
+    def base_topic(self) -> str:
         """MQTT topic prefix for all components."""
-        return self._basetopic
+        return self._base_topic
 
 
 class DiscoveryConfig(BaseModel):
@@ -138,11 +138,11 @@ class AppConfig(BaseSettings):
         return v.upper()
 
     @model_validator(mode="after")
-    def set_basetopic(self) -> AppConfig:
-        """Inject the global basetopic into device configs."""
-        self.mqtt._basetopic = self.identifier
+    def set_base_topic(self) -> AppConfig:
+        """Inject the global base_topic into device configs."""
+        self.mqtt._base_topic = self.identifier
         for device in self.devices.values():
-            device.homeassistant.inject_basetopic(self.identifier)
+            device.homeassistant.inject_base_topic(self.identifier)
         return self
 
     @model_validator(mode="before")
@@ -223,7 +223,7 @@ if __name__ == "__main__":
         os.path.expanduser("~/workspaces/lcn2mqtt/data/configuration.yaml")
     )
     print(config.model_dump_json(indent=2))
-    print(config.mqtt.basetopic)
+    print(config.mqtt.base_topic)
     print(type(list(config.devices.values())[0].homeassistant))
     # for addr, device in config.devices.items():
     #     print(device)

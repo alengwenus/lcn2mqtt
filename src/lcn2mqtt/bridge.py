@@ -40,7 +40,7 @@ class Bridge:
 
     def _base_topic(self) -> str:
         """Base MQTT topic for this bridge."""
-        return f"{self.config.mqtt.basetopic}"
+        return f"{self.config.mqtt.base_topic}"
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
         """MQTT topic prefix for the given LCN address."""
@@ -121,7 +121,7 @@ class Bridge:
             port=cfg.port,
             username=cfg.username,
             password=cfg.password,
-            identifier=f"{self.config.mqtt.basetopic}",
+            identifier=f"{self.config.mqtt.base_topic}",
             will=will,
         )
 

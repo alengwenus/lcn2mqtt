@@ -56,16 +56,16 @@ class DiscoveryManager:
     # ---------- helpers ----------
 
     def _bridge_identifier(self) -> str:
-        return f"{self._config.mqtt.basetopic}_bridge"
+        return f"{self._config.mqtt.base_topic}_bridge"
 
     def _addr_prefix(self, addr: LcnAddr) -> str:
         device = "group" if addr.is_group else "module"
         return (
-            f"{self._config.mqtt.basetopic}/{device}/{addr.seg_id:d}/{addr.addr_id:d}"
+            f"{self._config.mqtt.base_topic}/{device}/{addr.seg_id:d}/{addr.addr_id:d}"
         )
 
     def _availability(self) -> list[dict[str, str]]:
-        bridge_status = f"{self._config.mqtt.basetopic}/bridge/status"
+        bridge_status = f"{self._config.mqtt.base_topic}/bridge/status"
         return [
             {
                 "topic": bridge_status,
@@ -92,7 +92,7 @@ class DiscoveryManager:
         prefix = self._config.homeassistant.prefix
         topic = f"{prefix}/device/{object_id}/config"
         payload["o"] = {
-            "name": self._config.mqtt.basetopic,
+            "name": self._config.mqtt.base_topic,
             "sw": __version__,
             "url": "https://github.com/alengwenus/lcn2mqtt",
         }
@@ -125,10 +125,10 @@ class DiscoveryManager:
             cmps[identifier] = cmp.discovery_info()
 
         await self._publish_device(
-            f"{self._config.mqtt.basetopic}_{addr_str}",
+            f"{self._config.mqtt.base_topic}_{addr_str}",
             {
                 "dev": {
-                    "identifiers": [f"{self._config.mqtt.basetopic}_{addr_str}"],
+                    "identifiers": [f"{self._config.mqtt.base_topic}_{addr_str}"],
                     "name": display_name,
                     "manufacturer": "Issendorff",
                     "model": module.serials.type.description,
@@ -145,7 +145,7 @@ class DiscoveryManager:
 
     async def publish_bridge(self) -> None:
         """Publish a device-discovery entry for the bridge itself."""
-        base = self._config.mqtt.basetopic
+        base = self._config.mqtt.base_topic
         bridge_id = self._bridge_identifier()
         status_uid = f"{bridge_id}_status"
         await self._publish_device(

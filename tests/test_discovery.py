@@ -39,7 +39,7 @@ def module_addr() -> LcnAddr:
 def device(module_addr: LcnAddr) -> DeviceConfig:
     """A minimal DeviceConfig with default serials."""
     dev = DeviceConfig(address=module_addr)
-    dev.homeassistant.inject_basetopic("lcntest")
+    dev.homeassistant.inject_base_topic("lcntest")
     return dev
 
 
@@ -52,7 +52,7 @@ class TestHelpers:
     """Tests for DiscoveryManager helper methods."""
 
     def test_bridge_identifier(self, manager: DiscoveryManager) -> None:
-        """Bridge identifier is <basetopic>_bridge."""
+        """Bridge identifier is <base_topic>_bridge."""
         assert manager._bridge_identifier() == "lcntest_bridge"
 
     def test_addr_prefix_module(
@@ -218,7 +218,7 @@ class TestPublishModules:
         group_addr = LcnAddr(0, 3, True)
         module_addr = LcnAddr(0, 7, False)
         device = DeviceConfig(address=module_addr)
-        device.homeassistant.inject_basetopic("lcntest")
+        device.homeassistant.inject_base_topic("lcntest")
 
         modules = {
             group_addr: DeviceConfig(address=group_addr),
@@ -237,7 +237,7 @@ class TestPublishModules:
         modules = {}
         for addr in addrs:
             dev = DeviceConfig(address=addr)
-            dev.homeassistant.inject_basetopic("lcntest")
+            dev.homeassistant.inject_base_topic("lcntest")
             modules[addr] = dev
 
         await manager.publish_modules(modules)

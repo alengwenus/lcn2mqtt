@@ -18,19 +18,19 @@ from lcn2mqtt.models.homeassistant.components import (
 )
 
 ADDR = LcnAddr(0, 7, False)
-BASETOPIC = "lcntest"
-PREFIX = f"{BASETOPIC}/module/0/7"
+BASE_TOPIC = "lcntest"
+PREFIX = f"{BASE_TOPIC}/module/0/7"
 
 
 def make_switch(target: str, **kwargs) -> SwitchComponent:
     cmp = SwitchComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_basetopic(BASETOPIC)
+    cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_light(target: str, **kwargs) -> LightComponent:
     cmp = LightComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_basetopic(BASETOPIC)
+    cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
@@ -38,31 +38,31 @@ def make_binary_sensor(source: str, **kwargs) -> BinarySensorComponent:
     cmp = BinarySensorComponent(
         address=ADDR, identifier=source, source=source, **kwargs
     )
-    cmp.set_basetopic(BASETOPIC)
+    cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_sensor(source: str, **kwargs) -> SensorComponent:
     cmp = SensorComponent(address=ADDR, identifier=source, source=source, **kwargs)
-    cmp.set_basetopic(BASETOPIC)
+    cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_number(target: str, **kwargs) -> NumberComponent:
     cmp = NumberComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_basetopic(BASETOPIC)
+    cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_select(target: str, **kwargs) -> SelectComponent:
     cmp = SelectComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_basetopic(BASETOPIC)
+    cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
 def make_cover(target: str, **kwargs) -> CoverComponent:
     cmp = CoverComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_basetopic(BASETOPIC)
+    cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
@@ -80,9 +80,9 @@ class TestBaseComponentModel:
         assert sw.name == "Living room light"
 
     def test_unique_id_auto_generated(self) -> None:
-        """Unique ID is set from basetopic + address + platform + identifier."""
+        """Unique ID is set from base_topic + address + platform + identifier."""
         sw = make_switch("relay1")
-        assert sw.unique_id == f"{BASETOPIC}_m000007_switch_relay1"
+        assert sw.unique_id == f"{BASE_TOPIC}_m000007_switch_relay1"
 
     def test_custom_unique_id_preserved(self) -> None:
         """Explicitly provided unique_id is not overwritten."""
@@ -143,7 +143,7 @@ class TestSwitchComponent:
             target="relay1",
             state_topic="custom/state",
         )
-        sw.set_basetopic(BASETOPIC)
+        sw.set_base_topic(BASE_TOPIC)
         assert sw.state_topic == "custom/state"
 
     def test_invalid_target_raises(self) -> None:
@@ -354,7 +354,7 @@ class TestClimateComponent:
         }
         defaults.update(kwargs)
         cmp = ClimateComponent(**defaults)
-        cmp.set_basetopic(BASETOPIC)
+        cmp.set_base_topic(BASE_TOPIC)
         return cmp
 
     def test_temperature_state_topic(self) -> None:

@@ -138,11 +138,11 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
 
         return data
 
-    def inject_basetopic(self, basetopic: str) -> None:
-        """Inject the global basetopic into component models."""
+    def inject_base_topic(self, base_topic: str) -> None:
+        """Inject the global base_topic into component models."""
         for platform in PLATFORMS:
             for component in getattr(self, platform).values():
-                component.set_basetopic(basetopic)
+                component.set_base_topic(base_topic)
 
     @property
     def components(self) -> dict[str, Any]:

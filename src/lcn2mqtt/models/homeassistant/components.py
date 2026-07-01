@@ -20,7 +20,7 @@ class BaseComponentModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     address: LcnAddr = Field(..., exclude=True)
-    basetopic: str = Field(default="lcn2mqtt", exclude=True)
+    base_topic: str = Field(default="lcn2mqtt", exclude=True)
     identifier: str = Field(..., exclude=True)
 
     unique_id: str | None = Field(default=None, alias="uniq_id")
@@ -32,7 +32,7 @@ class BaseComponentModel(BaseModel):
     def prefix(self) -> str:
         """MQTT topic prefix for this component."""
         return (
-            f"{self.basetopic}/module/{self.address.seg_id:d}/{self.address.addr_id:d}"
+            f"{self.base_topic}/module/{self.address.seg_id:d}/{self.address.addr_id:d}"
         )
 
     @model_validator(mode="after")
@@ -42,9 +42,9 @@ class BaseComponentModel(BaseModel):
             self.name = self.identifier.replace("_", " ").capitalize()
         return self
 
-    def set_basetopic(self, basetopic: str) -> None:
-        """Set the basetopic and update topics accordingly."""
-        self.basetopic = basetopic
+    def set_base_topic(self, base_topic: str) -> None:
+        """Set the base_topic and update topics accordingly."""
+        self.base_topic = base_topic
         self.set_unique_id()
         self.set_topics()
 
@@ -52,7 +52,7 @@ class BaseComponentModel(BaseModel):
         """Set the unique ID and update topics accordingly."""
         if self.unique_id is None:
             self.unique_id = (
-                f"{self.basetopic}_{self.address}_{self.platform}_{self.identifier}"
+                f"{self.base_topic}_{self.address}_{self.platform}_{self.identifier}"
             )
 
     def discovery_info(self) -> dict[str, dict[str, Any]]:
@@ -406,8 +406,8 @@ class ClimateComponent(BaseComponentModel):
 
 if __name__ == "__main__":
     lcn_addr = LcnAddr(0, 7, False)
-    basetopic = "lcn2mqtt"
+    base_topic = "lcn2mqtt"
     switch = SwitchComponent(
-        address=lcn_addr, basetopic=basetopic, target="relay1", identifier="test"
+        address=lcn_addr, base_topic=base_topic, target="relay1", identifier="test"
     )
     print(switch.model_dump_json(exclude_none=True, indent=2))

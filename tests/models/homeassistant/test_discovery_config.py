@@ -19,8 +19,8 @@ from lcn2mqtt.models.homeassistant.discovery import (
 )
 
 ADDR = LcnAddr(0, 7, False)
-BASETOPIC = "lcntest"
-PREFIX = f"{BASETOPIC}/module/0/7"
+BASE_TOPIC = "lcntest"
+PREFIX = f"{BASE_TOPIC}/module/0/7"
 
 
 def make_config(addr: LcnAddr = ADDR, **kwargs) -> HomeAssistantModuleDiscoveryConfig:
@@ -118,7 +118,7 @@ class TestManualComponents:
             include=[],
             lights={"output1": {"target": "output1"}},
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.lights["output1"] == snapshot
 
     def test_manual_switch(self, snapshot) -> None:
@@ -128,7 +128,7 @@ class TestManualComponents:
             include=[],
             switches={"relay1": {"target": "relay1"}},
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.switches["relay1"] == snapshot
 
     def test_manual_climate(self, snapshot) -> None:
@@ -143,7 +143,7 @@ class TestManualComponents:
                 }
             },
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.climates["climate1"] == snapshot
 
     def test_manual_binary_sensor(self, snapshot) -> None:
@@ -153,7 +153,7 @@ class TestManualComponents:
             include=[],
             binary_sensors={"binsensor1": {"source": "binsensor1"}},
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.binary_sensors["binsensor1"] == snapshot
 
     def test_manual_number(self, snapshot) -> None:
@@ -163,7 +163,7 @@ class TestManualComponents:
             include=[],
             numbers={"var1": {"target": "var1"}},
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.numbers["var1"] == snapshot
 
     def test_manual_select(self, snapshot) -> None:
@@ -173,7 +173,7 @@ class TestManualComponents:
             include=[],
             selects={"led1": {"target": "led1"}},
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.selects["led1"] == snapshot
 
     def test_manual_cover(self, snapshot) -> None:
@@ -183,7 +183,7 @@ class TestManualComponents:
             include=[],
             covers={"motor1": {"target": "motor1"}},
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.covers["motor1"] == snapshot
 
     def test_manual_sensor(self, snapshot) -> None:
@@ -193,7 +193,7 @@ class TestManualComponents:
             include=[],
             sensors={"var1": {"source": "var1"}},
         )
-        cfg.inject_basetopic(BASETOPIC)
+        cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.sensors["var1"] == snapshot
 
     def test_extra_fields_forbidden(self) -> None:
