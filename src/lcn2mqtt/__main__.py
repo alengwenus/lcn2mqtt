@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import signal
 
@@ -24,7 +25,7 @@ def _setup_logging(level: str) -> logging.Logger:
 
 
 async def _amain() -> None:
-    """Main async entry point for the bridge."""
+    """Start the bridge and run until interrupted."""
     log = _setup_logging("INFO")
     log.info("Starting lcn2mqtt bridge")
     config = load_config()
@@ -35,10 +36,8 @@ async def _amain() -> None:
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
+        with contextlib.suppress(NotImplementedError):
             loop.add_signal_handler(sig, stop.set)
-        except NotImplementedError:
-            pass
 
     run_task = asyncio.create_task(bridge.run())
     stop_task = asyncio.create_task(stop.wait())
@@ -59,11 +58,9 @@ async def _amain() -> None:
 
 
 def main() -> None:
-    """Main entry point for the application."""
-    try:
+    """Start the bridge and run until interrupted."""
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(_amain())
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

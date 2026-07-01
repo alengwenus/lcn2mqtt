@@ -14,11 +14,23 @@ repos:
       - id: codespell
         args:
           - --quiet-level=2
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.19.1'  # Use the sha / tag you want to point at
+  - repo: local
     hooks:
-      # Run mypy type checks.
-      -   id: mypy
-          additional_dependencies:
-            - types-PyYAML
-            - PyYAML
+    - id: mypy
+      name: mypy src
+      entry: uv run mypy
+      language: system
+      require_serial: true
+      args:
+        - --strict
+        # - -v
+      files: ^(src)/.+\.py$
+    # - id: mypy tests
+    #   name: mypy tests
+    #   entry: uv run mypy
+    #   language: system
+    #   require_serial: true
+    #   args:
+    #     - --strict
+    #     # - -v
+    #   files: ^(tests)/.+\.py$

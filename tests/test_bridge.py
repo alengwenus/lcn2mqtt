@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,6 +11,7 @@ from pypck.inputs import ModSn
 from pypck.lcn_addr import LcnAddr
 
 from lcn2mqtt.bridge import Bridge
+from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.module import Module
 
 # ---------------------------------------------------------------------------
@@ -266,8 +268,6 @@ class TestHandleMqttMessage:
         self, bridge: Bridge, caplog
     ) -> None:
         """An unparsable topic triggers a WARNING log entry."""
-        import logging
-
         bridge._mqtt = AsyncMock()
         bridge.ensure_module_complete = AsyncMock()
 
@@ -305,8 +305,6 @@ class TestDispatchInput:
         self, bridge_with_pchk: Bridge
     ) -> None:
         """Messages yielded by dispatch_input are published to the module's MQTT prefix."""
-        from lcn2mqtt.helpers import MqttMessage
-
         addr = LcnAddr(0, 7, False)
         module = Module(address=addr)
         bridge_with_pchk.ensure_module_complete = AsyncMock(return_value=module)

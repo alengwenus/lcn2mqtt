@@ -1,25 +1,26 @@
 """Dispatcher for handling MQTT commands and routing them to the appropriate handlers."""
 
 import re
+from collections.abc import AsyncGenerator, Callable
 from functools import wraps
-from typing import AsyncGenerator
 
 from pypck import inputs
 
 from lcn2mqtt.helpers import MqttMessage
 
-_MQTT_HANDLER_REGISTRY = []
-_INPUT_HANDLER_REGISTRY = []
+_MQTT_HANDLER_REGISTRY: list[tuple[re.Pattern, Callable]] = []
+_INPUT_HANDLER_REGISTRY: list[tuple[inputs.Input, Callable]] = []
 
 
 def mqtt_to_regex(pattern: str) -> str:
+    """Convert an MQTT topic pattern to a regular expression."""
     pattern = pattern.replace("+", "[^/]+")
     pattern = pattern.replace("#", ".*")
     return "^" + pattern + "$"
 
 
 def mqtt_handler(*pattern: str):
-    """Decorator to mark a method as an MQTT command handler for a specific topic pattern."""
+    """Decorate a method as an MQTT command handler for a specific topic pattern."""
     regexes = [mqtt_to_regex(pat) for pat in pattern]
 
     def decorator(func):
@@ -48,7 +49,7 @@ async def dispatch_mqtt(topic: str, payload, *args, **kwargs) -> bool:
 
 
 def input_handler(inp: inputs.Input):
-    """Decorator to mark a method as an input handler."""
+    """Decorate a method as an input handler."""
 
     def decorator(func):
         _INPUT_HANDLER_REGISTRY.append((inp, func))

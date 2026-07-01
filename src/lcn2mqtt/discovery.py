@@ -50,6 +50,7 @@ class DiscoveryManager:
     """Handles HA MQTT device-discovery messages for LCN modules."""
 
     def __init__(self, config: AppConfig, mqtt: aiomqtt.Client) -> None:
+        """Initialize the DiscoveryManager with the application configuration and MQTT client."""
         self._config = config
         self._mqtt = mqtt
 
@@ -83,8 +84,8 @@ class DiscoveryManager:
             is_group = parts[1] == "group"
             seg = int(parts[2])
             addr = int(parts[3])
-        except (IndexError, ValueError):
-            raise ValueError("Topic does not match expected format")
+        except (IndexError, ValueError) as exc:
+            raise ValueError("Topic does not match expected format") from exc
         return LcnAddr(seg, addr, is_group)
 
     async def _publish_device(self, object_id: str, payload: dict[str, Any]) -> None:

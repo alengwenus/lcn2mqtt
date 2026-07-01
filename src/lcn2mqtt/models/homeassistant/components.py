@@ -27,6 +27,7 @@ class BaseComponentModel(BaseModel):
     name: str | None = Field(default=None)
 
     # platform is set in subclasses and used for validation
+    platform: Literal[None] = Field(..., alias="p")  # type: ignore[assignment]
 
     @property
     def prefix(self) -> str:
@@ -410,4 +411,4 @@ if __name__ == "__main__":
     switch = SwitchComponent(
         address=lcn_addr, base_topic=base_topic, target="relay1", identifier="test"
     )
-    print(switch.model_dump_json(exclude_none=True, indent=2))
+    # print(switch.model_dump_json(exclude_none=True, indent=2))

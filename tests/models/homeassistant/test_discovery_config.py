@@ -24,6 +24,7 @@ PREFIX = f"{BASE_TOPIC}/module/0/7"
 
 
 def make_config(addr: LcnAddr = ADDR, **kwargs) -> HomeAssistantModuleDiscoveryConfig:
+    """Return a HomeAssistantModuleDiscoveryConfig with the given address and kwargs."""
     return HomeAssistantModuleDiscoveryConfig(address=addr, **kwargs)
 
 

@@ -32,6 +32,7 @@ class Bridge:
     _loop_task: asyncio.Task[None]
 
     def __init__(self, config: AppConfig) -> None:
+        """Initialize the Bridge with the application configuration."""
         self.config = config
         self.modules: dict[LcnAddr, Module] = config.devices
         self._discovery: DiscoveryManager | None = None
@@ -39,11 +40,11 @@ class Bridge:
     # ---------- topic helpers ----------
 
     def _base_topic(self) -> str:
-        """Base MQTT topic for this bridge."""
+        """Return the base MQTT topic for this bridge."""
         return f"{self.config.mqtt.base_topic}"
 
     def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
-        """MQTT topic prefix for the given LCN address."""
+        """Return the MQTT topic prefix for the given LCN address."""
         target_type = "group" if lcn_addr.is_group else "module"
         return (
             f"{self._base_topic()}/{target_type}/{lcn_addr.seg_id}/{lcn_addr.addr_id}"
@@ -62,8 +63,8 @@ class Bridge:
             is_group = parts[1] == "group"
             seg = int(parts[2])
             addr = int(parts[3])
-        except (IndexError, ValueError):
-            raise ValueError("Topic does not match expected format")
+        except (IndexError, ValueError) as exc:
+            raise ValueError("Topic does not match expected format") from exc
         return LcnAddr(seg, addr, is_group)
 
     def _bridge_status_topic(self) -> str:
@@ -236,7 +237,7 @@ class Bridge:
     # ---------- LCN -> MQTT ----------
 
     def _on_lcn_input(self, inp: inputs.Input) -> None:
-        """Callback for incoming LCN inputs; schedules async dispatch."""
+        """Schedules async dispatch from incoming LCN inputs."""
         # Schedule async dispatch; pypck calls this from the event loop.
         asyncio.create_task(self._dispatch_input(inp))
 

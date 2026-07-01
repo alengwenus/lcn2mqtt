@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from pypck.lcn_addr import LcnAddr
 
 from lcn2mqtt.bridge import Bridge
@@ -29,13 +28,13 @@ def config() -> AppConfig:
 
 @pytest.fixture
 def bridge(config: AppConfig) -> Bridge:
-    """Bridge fixture backed by a minimal config."""
+    """Return a bridge backed by a minimal config."""
     return Bridge(config)
 
 
 @pytest.fixture
 def bridge_with_pchk(bridge: Bridge) -> Bridge:
-    """Bridge fixture with mocked PCHK, MQTT and no discovery."""
+    """Return a bridge with mocked PCHK, MQTT and no discovery."""
     bridge._pchk = MagicMock()
     bridge._mqtt = AsyncMock()
     bridge._discovery = None
@@ -44,7 +43,7 @@ def bridge_with_pchk(bridge: Bridge) -> Bridge:
 
 @pytest.fixture
 def mock_device_conn() -> MagicMock:
-    """A mock device connection that reports a valid serial and a name."""
+    """Return a mock device connection that reports a valid serial and a name."""
     conn = MagicMock()
     conn.serials_known = AsyncMock()
     conn.serials.hardware_serial = 1
@@ -54,13 +53,13 @@ def mock_device_conn() -> MagicMock:
 
 @pytest.fixture
 def module() -> Module:
-    """A fresh Module instance with no device connection."""
+    """Return a fresh Module instance with no device connection."""
     return Module(address=LcnAddr(0, 7, False))
 
 
 @pytest.fixture
 def module_with_conn(module: Module) -> Module:
-    """Module with a mock async device connection (new firmware)."""
+    """Return module with a mock async device connection (new firmware)."""
     conn = AsyncMock()
     conn.serials.software_serial = 0x180000  # > 0x170206 → new firmware
     module._device_connection = conn

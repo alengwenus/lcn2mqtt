@@ -55,6 +55,7 @@ class DeviceConfig(Module):
     @model_validator(mode="before")
     @classmethod
     def configure_homeassistant(cls, data: Any) -> Any:
+        """Configure the Home Assistant settings for a device."""
         if "homeassistant" not in data or not isinstance(data["homeassistant"], dict):
             data["homeassistant"] = {}
 
@@ -127,7 +128,7 @@ class AppConfig(BaseSettings):
     def __new__(
         cls, yaml_file: str | os.PathLike = "data/configuration.yaml", *args, **kwargs
     ):
-        """Pass the YAML file path to the base class for loading"""
+        """Pass the YAML file path to the base class for loading."""
         cls.model_config["yaml_file"] = yaml_file
         return super().__new__(cls, *args, **kwargs)
 
@@ -148,6 +149,7 @@ class AppConfig(BaseSettings):
     @model_validator(mode="before")
     @classmethod
     def to_lcn_addr(cls, data: Any) -> Any:
+        """Convert device addresses to LcnAddr instances."""
         if "devices" not in data or not isinstance(data["devices"], dict):
             data["devices"] = {}
 
@@ -201,6 +203,7 @@ class AppConfig(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize the order of settings sources to include YAML file."""
         return (
             init_settings,
             env_settings,
@@ -222,9 +225,9 @@ if __name__ == "__main__":
     config = load_config(
         os.path.expanduser("~/workspaces/lcn2mqtt/data/configuration.yaml")
     )
-    print(config.model_dump_json(indent=2))
-    print(config.mqtt.base_topic)
-    print(type(list(config.devices.values())[0].homeassistant))
+    # print(config.model_dump_json(indent=2))
+    # print(config.mqtt.base_topic)
+    # print(type(list(config.devices.values())[0].homeassistant))
     # for addr, device in config.devices.items():
     #     print(device)
     #     print(device.module_overrides)

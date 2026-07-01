@@ -9,7 +9,7 @@ from pypck.device import DeviceConnection
 from pypck.lcn_addr import LcnAddr
 
 
-def alias_property(target: str):
+def alias_property(target: str) -> property:
     """Create a property that aliases another attribute."""
     return property(
         lambda self: getattr(self, target),
@@ -102,8 +102,8 @@ class Variable(BaseModel):
         """Validate the variable unit."""
         try:
             unit = lcn_defs.VarUnit.parse(v.upper())
-        except ValueError:
-            raise ValueError(f"Invalid variable unit: {v}")
+        except ValueError as exc:
+            raise ValueError(f"Invalid variable unit: {v}") from exc
         return unit
 
     def update_value(self, value: int) -> bool:
