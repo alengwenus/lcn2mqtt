@@ -5,12 +5,12 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from lcn2mqtt.bridge import Bridge
-from lcn2mqtt.models.module import Module
 from pypck import lcn_defs
 from pypck.inputs import ModSn
 from pypck.lcn_addr import LcnAddr
+
+from lcn2mqtt.bridge import Bridge
+from lcn2mqtt.models.module import Module
 
 # ---------------------------------------------------------------------------
 # Topic helpers
@@ -265,7 +265,7 @@ class TestHandleMqttMessage:
     async def test_invalid_topic_format_logged_as_warning(
         self, bridge: Bridge, caplog
     ) -> None:
-        """An unparseable topic triggers a WARNING log entry."""
+        """An unparsable topic triggers a WARNING log entry."""
         import logging
 
         bridge._mqtt = AsyncMock()

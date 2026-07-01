@@ -8,6 +8,12 @@ repos:
         args: [ --fix]
       # Run the formatter.
       - id: ruff-format
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+      - id: codespell
+        args:
+          - --quiet-level=2
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: 'v1.19.1'  # Use the sha / tag you want to point at
     hooks:
