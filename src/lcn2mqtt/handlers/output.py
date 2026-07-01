@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
 from typing import Any
 
 from pydantic import ValidationError
@@ -22,9 +22,7 @@ _DEFAULT_TRANSITION_MS = 500
 
 
 @input_handler(inputs.ModStatusOutput)
-async def handle_input(
-    inp: inputs.ModStatusOutput, module: Module
-) -> AsyncGenerator[MqttMessage]:
+def handle_input(inp: inputs.ModStatusOutput, module: Module) -> Generator[MqttMessage]:
     """Handle an output status input, update the module state, and publish any changes."""
     idx = inp.output_id + 1  # 0-based -> 1-based
     output = getattr(module, f"output{idx}")

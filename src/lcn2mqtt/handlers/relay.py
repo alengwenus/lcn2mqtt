@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import Generator
 
 from pypck import inputs, lcn_defs
 
@@ -16,10 +16,10 @@ _LOG = logging.getLogger(__name__)
 
 
 @input_handler(inputs.ModStatusRelays)
-async def handle_relay_status(
+def handle_relay_status(
     inp: inputs.ModStatusRelays,
     module: Module,
-) -> AsyncGenerator[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle a relay status input, update the module state, and return any changes."""
     states = [RelayState.ON if s else RelayState.OFF for s in inp.states]
     changed = module.update_relays(states)

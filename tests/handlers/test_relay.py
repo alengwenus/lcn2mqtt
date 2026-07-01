@@ -17,14 +17,14 @@ class TestHandleRelayStatus:
     async def test_all_relays_reported_on_first_call(self, module: Module) -> None:
         """All 8 relays produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
-        messages = await handle_relay_status(inp, module=module)
+        messages = list(handle_relay_status(inp, module=module))
         assert len(messages) == 8
 
     async def test_changed_relays_produce_messages(self, module: Module) -> None:
         """Only relays whose state actually changed emit a message."""
         states = [True, False, True] + [False] * 5
         inp = inputs.ModStatusRelays(module.address, states)
-        messages = await handle_relay_status(inp, module=module)
+        messages = list(handle_relay_status(inp, module=module))
         topics = {m.topic for m in messages}
         assert "relay/1/state" in topics
         assert "relay/3/state" in topics
@@ -41,7 +41,7 @@ class TestHandleRelayStatus:
     ) -> None:
         """A relay set to True publishes 'on'."""
         inp = inputs.ModStatusRelays(module.address, [state] + [False] * 7)
-        messages = await handle_relay_status(inp, module=module)
+        messages = list(handle_relay_status(inp, module=module))
         msg = next(
             (message for message in messages if message.topic == "relay/1/state"), None
         )
@@ -51,8 +51,8 @@ class TestHandleRelayStatus:
     async def test_no_change_produces_no_messages(self, module: Module) -> None:
         """No messages are emitted when all relay states are unchanged."""
         inp = inputs.ModStatusRelays(module.address, [True, False] + [False] * 6)
-        await handle_relay_status(inp, module=module)
-        messages = await handle_relay_status(inp, module=module)
+        list(handle_relay_status(inp, module=module))
+        messages = list(handle_relay_status(inp, module=module))
         assert messages == []
 
 

@@ -257,7 +257,7 @@ class Bridge:
             if isinstance(inp, inputs.ModSn):
                 await self._set_module_serials(module, inp)
             else:
-                async for message in dispatch_input(inp, module=module):
+                for message in dispatch_input(inp, module=module):
                     await self._publish(f"{prefix}/{message.topic}", message.payload)
             # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 

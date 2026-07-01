@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import Generator
 
 from pypck import inputs, lcn_defs
 
@@ -16,9 +16,9 @@ _LOG = logging.getLogger(__name__)
 
 
 @input_handler(inputs.ModStatusLedsAndLogicOps)
-async def handle_input(
+def handle_input(
     inp: inputs.ModStatusLedsAndLogicOps, module: Module
-) -> AsyncGenerator[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle an LED status input, update the module state, and publish any changes."""
     states = [LedState(state.name.lower()) for state in inp.states_led]
     changed = module.update_leds(states)

@@ -1,7 +1,7 @@
 """Handler for LCN binary sensors."""
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import Generator
 
 from pypck import inputs
 
@@ -14,9 +14,9 @@ _LOG = logging.getLogger(__name__)
 
 
 @input_handler(inputs.ModStatusBinSensors)
-async def handle_binsensor_input(
+def handle_binsensor_input(
     inp: inputs.ModStatusBinSensors, module: Module
-) -> AsyncGenerator[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle binary sensors status input, update the module state, and publish any changes."""
     changed: list[bool] = module.update_binaries(inp.states)
     for idx, did_change in enumerate(changed, start=1):

@@ -1,7 +1,7 @@
 """Dispatcher for handling MQTT commands and routing them to the appropriate handlers."""
 
 import re
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
 from functools import wraps
 from typing import Any
 
@@ -11,7 +11,7 @@ from lcn2mqtt.helpers import MqttMessage
 
 _MQTT_HANDLER_REGISTRY: list[tuple[re.Pattern[str], Callable[..., Awaitable[Any]]]] = []
 _INPUT_HANDLER_REGISTRY: list[
-    tuple[type[inputs.Input], Callable[..., AsyncGenerator[MqttMessage]]]
+    tuple[type[inputs.Input], Callable[..., Generator[MqttMessage]]]
 ] = []
 
 
@@ -55,16 +55,16 @@ async def dispatch_mqtt(topic: str, payload: str, *args: Any, **kwargs: Any) -> 
 
 def input_handler(
     inp: type[inputs.Input],
-) -> Callable[..., Callable[..., AsyncGenerator[MqttMessage]]]:
+) -> Callable[..., Callable[..., Generator[MqttMessage]]]:
     """Decorate a method as an input handler."""
 
     def decorator(
-        func: Callable[..., AsyncGenerator[MqttMessage]],
-    ) -> Callable[..., AsyncGenerator[MqttMessage]]:
+        func: Callable[..., Generator[MqttMessage]],
+    ) -> Callable[..., Generator[MqttMessage]]:
         _INPUT_HANDLER_REGISTRY.append((inp, func))
 
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> AsyncGenerator[MqttMessage]:
+        def wrapper(*args: Any, **kwargs: Any) -> Generator[MqttMessage]:
             return func(*args, **kwargs)
 
         return wrapper
@@ -72,11 +72,10 @@ def input_handler(
     return decorator
 
 
-async def dispatch_input(
+def dispatch_input(
     inp: inputs.Input, *args: Any, **kwargs: Any
-) -> AsyncGenerator[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Dispatch an input command to the appropriate handler."""
     for registered_inp, func in _INPUT_HANDLER_REGISTRY:
         if isinstance(inp, registered_inp):
-            async for message in func(inp, *args, **kwargs):
-                yield message
+            yield from func(inp, *args, **kwargs)

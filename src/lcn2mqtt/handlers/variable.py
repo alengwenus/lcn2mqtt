@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import Awaitable, Callable, Generator
 from itertools import chain
 from typing import Any
 
@@ -23,9 +23,9 @@ Publish = Callable[[str, Any], Awaitable[None]]
 
 
 @input_handler(inputs.ModStatusVar)
-async def handle_variable_input(
+def handle_variable_input(
     inp: inputs.ModStatusVar, module: Module
-) -> AsyncGenerator[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle a variable status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.variables():
         return
@@ -87,9 +87,9 @@ async def handle_variable_change(
 
 
 @input_handler(inputs.ModStatusVar)
-async def handle_setpoint_input(
+def handle_setpoint_input(
     inp: inputs.ModStatusVar, module: Module
-) -> AsyncGenerator[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle a setpoint status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.set_points():
         return
@@ -166,9 +166,9 @@ async def handle_setpoint_change(
 
 
 @input_handler(inputs.ModStatusVar)
-async def handle_threshold_input(
+def handle_threshold_input(
     inp: inputs.ModStatusVar, module: Module
-) -> AsyncGenerator[MqttMessage]:
+) -> Generator[MqttMessage]:
     """Handle a threshold status input, update the module state, and publish any changes."""
     if inp.var not in list(chain.from_iterable(lcn_defs.Var.thresholds())):
         return
