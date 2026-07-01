@@ -33,7 +33,7 @@ lcn2mqtt/module/<seg>/<addr>/relay/1/set
 ## Documentation
 
 Full documentation (installation, configuration, topic schema, Home Assistant integration)
-is available in the repository wiki.
+is available in the repository [**wiki**](https://github.com/alengwenus/lcn2mqtt/wiki).
 
 ## License
 
