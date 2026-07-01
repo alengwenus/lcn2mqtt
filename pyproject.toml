@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.13.4",
-    "pypck>=0.9.12",
+    "pypck>=0.9.14",
     "aiomqtt>=2.3.0",
     "pydantic-settings>=2.14.1",
     "pyyaml>=6.0",
@@ -42,6 +42,3 @@ cache-dir = ".cache/ruff"
 
 [tool.mypy]
 cache_dir = ".cache/mypy"
-
-[tool.uv.sources]
-pypck = { path = "../pypck", editable = true }
