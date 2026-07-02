@@ -15,3 +15,8 @@ mqtt:
   port: 1883
   username: mqtt
   password: mqtt
+
+homeassistant:
+  enabled: true
+  prefix: "homeassistant"
+  scan_modules: false
