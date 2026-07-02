@@ -56,7 +56,7 @@ class BaseComponentModel(BaseModel):
                 f"{self.base_topic}_{self.address}_{self.platform}_{self.identifier}"
             )
 
-    def discovery_info(self) -> dict[str, dict[str, Any]]:
+    def discovery_info(self) -> dict[str, Any]:
         """Return discovery info for this component."""
         return self.model_dump(exclude_none=True)
 

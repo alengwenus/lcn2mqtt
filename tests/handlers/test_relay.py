@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
 from pypck import inputs, lcn_defs
@@ -75,8 +77,9 @@ class TestHandleRelaySet:
     ) -> None:
         """Sending a set command calls the device's control_relays method with the correct modifier."""
         await handle_set("relay/1/set", payload, module=module_with_conn)
-        module_with_conn._device_connection.control_relays.assert_awaited_once()
-        states = module_with_conn._device_connection.control_relays.call_args.args[0]
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.control_relays.assert_awaited_once()
+        states = conn.control_relays.call_args.args[0]
         assert states[0] == expected_modifier
         assert all(s == lcn_defs.RelayStateModifier.NOCHANGE for s in states[1:])
 
@@ -86,7 +89,8 @@ class TestHandleRelaySet:
         """An unknown payload logs a warning and does not call the device."""
         with caplog.at_level(logging.WARNING):
             await handle_set("relay/1/set", "unknown", module=module_with_conn)
-        module_with_conn._device_connection.control_relays.assert_not_awaited()
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.control_relays.assert_not_awaited()
         assert any("relay" in record.message.lower() for record in caplog.records)
 
     async def test_out_of_range_index_is_ignored(
@@ -94,4 +98,5 @@ class TestHandleRelaySet:
     ) -> None:
         """A relay index outside 1-8 is silently ignored."""
         await handle_set("relay/9/set", "on", module=module_with_conn)
-        module_with_conn._device_connection.control_relays.assert_not_awaited()
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.control_relays.assert_not_awaited()

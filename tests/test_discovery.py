@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from pypck.lcn_addr import LcnAddr
+from syrupy.assertion import SnapshotAssertion
 
 from lcn2mqtt.discovery import DiscoveryManager
 from lcn2mqtt.models.config import AppConfig, DeviceConfig
@@ -40,6 +41,7 @@ def module_addr() -> LcnAddr:
 def device(module_addr: LcnAddr) -> DeviceConfig:
     """Return a minimal DeviceConfig with default serials."""
     dev = DeviceConfig(address=module_addr)
+    assert dev.homeassistant is not None
     dev.homeassistant.inject_base_topic("lcntest")
     return dev
 
@@ -136,7 +138,7 @@ class TestPublishBridge:
         assert first_call.kwargs["payload"] == ""
 
     async def test_bridge_discovery_payload(
-        self, manager: DiscoveryManager, mqtt: AsyncMock, snapshot
+        self, manager: DiscoveryManager, mqtt: AsyncMock, snapshot: SnapshotAssertion
     ) -> None:
         """Bridge discovery payload matches the snapshot."""
         await manager.publish_bridge()
@@ -194,7 +196,7 @@ class TestPublishModule:
         mqtt: AsyncMock,
         module_addr: LcnAddr,
         device: DeviceConfig,
-        snapshot,
+        snapshot: SnapshotAssertion,
     ) -> None:
         """Module payload contains a 'dev' key with manufacturer and model."""
         await manager.publish_module(module_addr, device)
@@ -219,6 +221,7 @@ class TestPublishModules:
         group_addr = LcnAddr(0, 3, True)
         module_addr = LcnAddr(0, 7, False)
         device = DeviceConfig(address=module_addr)
+        assert device.homeassistant is not None
         device.homeassistant.inject_base_topic("lcntest")
 
         modules = {
@@ -238,6 +241,7 @@ class TestPublishModules:
         modules = {}
         for addr in addrs:
             dev = DeviceConfig(address=addr)
+            assert dev.homeassistant is not None
             dev.homeassistant.inject_base_topic("lcntest")
             modules[addr] = dev
 

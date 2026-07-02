@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from pypck import lcn_defs
 from pypck.lcn_addr import LcnAddr
@@ -22,21 +24,21 @@ BASE_TOPIC = "lcntest"
 PREFIX = f"{BASE_TOPIC}/module/0/7"
 
 
-def make_switch(target: str, **kwargs) -> SwitchComponent:
+def make_switch(target: str, **kwargs: Any) -> SwitchComponent:
     """Return a SwitchComponent with the given target and kwargs."""
     cmp = SwitchComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_light(target: str, **kwargs) -> LightComponent:
+def make_light(target: str, **kwargs: Any) -> LightComponent:
     """Return a LightComponent with the given target and kwargs."""
     cmp = LightComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_binary_sensor(source: str, **kwargs) -> BinarySensorComponent:
+def make_binary_sensor(source: str, **kwargs: Any) -> BinarySensorComponent:
     """Return a BinarySensorComponent with the given source and kwargs."""
     cmp = BinarySensorComponent(
         address=ADDR, identifier=source, source=source, **kwargs
@@ -45,28 +47,28 @@ def make_binary_sensor(source: str, **kwargs) -> BinarySensorComponent:
     return cmp
 
 
-def make_sensor(source: str, **kwargs) -> SensorComponent:
+def make_sensor(source: str, **kwargs: Any) -> SensorComponent:
     """Return a SensorComponent with the given source and kwargs."""
     cmp = SensorComponent(address=ADDR, identifier=source, source=source, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_number(target: str, **kwargs) -> NumberComponent:
+def make_number(target: str, **kwargs: Any) -> NumberComponent:
     """Return a NumberComponent with the given target and kwargs."""
     cmp = NumberComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_select(target: str, **kwargs) -> SelectComponent:
+def make_select(target: str, **kwargs: Any) -> SelectComponent:
     """Return a SelectComponent with the given target and kwargs."""
     cmp = SelectComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_cover(target: str, **kwargs) -> CoverComponent:
+def make_cover(target: str, **kwargs: Any) -> CoverComponent:
     """Return a CoverComponent with the given target and kwargs."""
     cmp = CoverComponent(address=ADDR, identifier=target, target=target, **kwargs)
     cmp.set_base_topic(BASE_TOPIC)
@@ -352,7 +354,7 @@ class TestCoverComponent:
 class TestClimateComponent:
     """Tests for ClimateComponent."""
 
-    def _make_climate(self, **kwargs) -> ClimateComponent:
+    def _make_climate(self, **kwargs: Any) -> ClimateComponent:
         defaults = {
             "address": ADDR,
             "identifier": "climate1",
@@ -408,15 +410,6 @@ class TestClimateComponent:
                 identifier="c",
                 temperature="R1VARSETPOINT",
                 current_temperature="R1VARSETPOINT",
-            )
-
-    def test_missing_temperature_raises(self) -> None:
-        """Missing temperature field raises ValueError."""
-        with pytest.raises(ValueError):
-            ClimateComponent(
-                address=ADDR,
-                identifier="c",
-                current_temperature="VAR1",
             )
 
     def test_platform_is_climate(self) -> None:

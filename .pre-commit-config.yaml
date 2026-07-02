@@ -25,12 +25,12 @@ repos:
         - --strict
         # - -v
       files: ^(src)/.+\.py$
-    # - id: mypy tests
-    #   name: mypy tests
-    #   entry: uv run mypy
-    #   language: system
-    #   require_serial: true
-    #   args:
-    #     - --strict
-    #     # - -v
-    #   files: ^(tests)/.+\.py$
+    - id: mypy tests
+      name: mypy tests
+      entry: uv run mypy
+      language: system
+      require_serial: true
+      args:
+        - --strict
+        # - -v
+      files: ^(tests)/.+\.py$

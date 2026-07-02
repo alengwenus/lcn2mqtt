@@ -17,7 +17,7 @@ _FIXTURE_YAML = Path(__file__).parent / "fixtures" / "conf.yaml"
 
 def make_config() -> AppConfig:
     """Build an AppConfig from the test fixture YAML."""
-    return AppConfig(_FIXTURE_YAML)
+    return AppConfig(yaml_file=_FIXTURE_YAML)
 
 
 @pytest.fixture

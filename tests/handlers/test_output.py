@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
 from pypck import inputs
@@ -130,7 +132,8 @@ class TestHandleSet:
         module_with_conn.output1.state = OutputState.OFF
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "on", module=module_with_conn)
-        module_with_conn._device_connection.toggle_output.assert_awaited_with(
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.toggle_output.assert_awaited_with(
             0, 0, to_memory=True
         )  # idx-1, ramp, to_memory
 
@@ -141,9 +144,8 @@ class TestHandleSet:
         module_with_conn.output1.brightness = 80.0
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "on", module=module_with_conn)
-        module_with_conn._device_connection.dim_output.assert_awaited_with(
-            0, 80.0, 0
-        )  # idx-1, brightness, ramp
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.dim_output.assert_awaited_with(0, 80.0, 0)  # idx-1, brightness, ramp
 
     async def test_off_when_on_calls_toggle(self, module_with_conn: Module) -> None:
         """'off' command when output is ON triggers toggle_output."""
@@ -151,7 +153,8 @@ class TestHandleSet:
         module_with_conn.output1.state = OutputState.ON
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "off", module=module_with_conn)
-        module_with_conn._device_connection.toggle_output.assert_awaited_with(
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.toggle_output.assert_awaited_with(
             0, 0, to_memory=True
         )  # idx-1, ramp, to_memory
 
@@ -163,7 +166,8 @@ class TestHandleSet:
         module_with_conn.output1.state = OutputState.OFF
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "off", module=module_with_conn)
-        module_with_conn._device_connection.dim_output.assert_awaited_with(
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.dim_output.assert_awaited_with(
             0,
             0.0,
             0,  # idx-1, brightness, ramp
@@ -174,7 +178,8 @@ class TestHandleSet:
         assert module_with_conn._device_connection
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "60.0", module=module_with_conn)
-        module_with_conn._device_connection.dim_output.assert_awaited_with(
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.dim_output.assert_awaited_with(
             0,
             60.0,
             0,  # idx-1, brightness, ramp
@@ -184,7 +189,8 @@ class TestHandleSet:
         """Brightness values above 100 are clamped to 100."""
         assert module_with_conn._device_connection
         await handle_set("output/1/set", "150.0", module=module_with_conn)
-        _, call_args, _ = module_with_conn._device_connection.dim_output.mock_calls[0]
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        _, call_args, _ = conn.dim_output.mock_calls[0]
         brightness_arg = call_args[1]  # positional arg index 1
         assert brightness_arg <= 100.0
 

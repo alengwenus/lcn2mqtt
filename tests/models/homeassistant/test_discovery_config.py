@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from pypck.lcn_addr import LcnAddr
+from syrupy.assertion import SnapshotAssertion
 
 from lcn2mqtt.models.homeassistant.components import (
     BinarySensorComponent,
@@ -23,7 +26,9 @@ BASE_TOPIC = "lcntest"
 PREFIX = f"{BASE_TOPIC}/module/0/7"
 
 
-def make_config(addr: LcnAddr = ADDR, **kwargs) -> HomeAssistantModuleDiscoveryConfig:
+def make_config(
+    addr: LcnAddr = ADDR, **kwargs: Any
+) -> HomeAssistantModuleDiscoveryConfig:
     """Return a HomeAssistantModuleDiscoveryConfig with the given address and kwargs."""
     return HomeAssistantModuleDiscoveryConfig(address=addr, **kwargs)
 
@@ -112,7 +117,7 @@ class TestIncludeExclude:
 class TestManualComponents:
     """Tests for manually defined components in config."""
 
-    def test_manual_light(self, snapshot) -> None:
+    def test_manual_light(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined light."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,
@@ -122,7 +127,7 @@ class TestManualComponents:
         cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.lights["output1"] == snapshot
 
-    def test_manual_switch(self, snapshot) -> None:
+    def test_manual_switch(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined switch."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,
@@ -132,7 +137,7 @@ class TestManualComponents:
         cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.switches["relay1"] == snapshot
 
-    def test_manual_climate(self, snapshot) -> None:
+    def test_manual_climate(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined climate component."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,
@@ -147,7 +152,7 @@ class TestManualComponents:
         cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.climates["climate1"] == snapshot
 
-    def test_manual_binary_sensor(self, snapshot) -> None:
+    def test_manual_binary_sensor(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined binary sensor."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,
@@ -157,7 +162,7 @@ class TestManualComponents:
         cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.binary_sensors["binsensor1"] == snapshot
 
-    def test_manual_number(self, snapshot) -> None:
+    def test_manual_number(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined number component."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,
@@ -167,7 +172,7 @@ class TestManualComponents:
         cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.numbers["var1"] == snapshot
 
-    def test_manual_select(self, snapshot) -> None:
+    def test_manual_select(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined select component."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,
@@ -177,7 +182,7 @@ class TestManualComponents:
         cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.selects["led1"] == snapshot
 
-    def test_manual_cover(self, snapshot) -> None:
+    def test_manual_cover(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined cover component."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,
@@ -187,7 +192,7 @@ class TestManualComponents:
         cfg.inject_base_topic(BASE_TOPIC)
         assert cfg.covers["motor1"] == snapshot
 
-    def test_manual_sensor(self, snapshot) -> None:
+    def test_manual_sensor(self, snapshot: SnapshotAssertion) -> None:
         """Test manually defined sensor component."""
         cfg = HomeAssistantModuleDiscoveryConfig(
             address=ADDR,

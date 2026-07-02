@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
 from pypck import inputs, lcn_defs
@@ -82,7 +84,7 @@ class TestHandleLedCommand:
     ) -> None:
         """Payload calls control_led with the expected LedStatus."""
         await handle_command("led/1/set", payload, module=module_with_conn)
-        conn = module_with_conn._device_connection
+        conn = cast(AsyncMock, module_with_conn._device_connection)
         conn.control_led.assert_awaited_once()
         _, (_, status), _ = conn.control_led.mock_calls[0]  # name, args, kwargs
         assert status == expected_status
@@ -92,7 +94,8 @@ class TestHandleLedCommand:
     ) -> None:
         """After sending the command, LED status is requested from the device."""
         await handle_command("led/1/set", "on", module=module_with_conn)
-        module_with_conn._device_connection.request_status_leds_and_logic_ops.assert_awaited_once()
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_leds_and_logic_ops.assert_awaited_once()
 
     async def test_invalid_payload_logs_warning(
         self, module_with_conn: Module, caplog: pytest.LogCaptureFixture
@@ -100,5 +103,6 @@ class TestHandleLedCommand:
         """An unknown LED state payload logs a warning and does not call the device."""
         with caplog.at_level(logging.WARNING):
             await handle_command("led/1/set", "rainbow", module=module_with_conn)
-        module_with_conn._device_connection.control_led.assert_not_awaited()
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.control_led.assert_not_awaited()
         assert any("led" in record.message.lower() for record in caplog.records)

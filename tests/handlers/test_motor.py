@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from typing import cast
+from unittest.mock import AsyncMock
+
 import pytest
 from pypck import inputs, lcn_defs
 
@@ -88,7 +91,7 @@ class TestHandleMotorSet:
     ) -> None:
         """The set command calls the device connection's control_motor_relays method."""
         await handle_set("motor_relays/1/set", payload, module=module_with_conn)
-        conn = module_with_conn._device_connection
+        conn = cast(AsyncMock, module_with_conn._device_connection)
         conn.control_motor_relays.assert_awaited_once_with(0, expected_modifier)
 
     async def test_unknown_payload_does_not_call_device(
@@ -96,11 +99,13 @@ class TestHandleMotorSet:
     ) -> None:
         """An unrecognised payload is silently ignored."""
         await handle_set("motor_relays/1/set", "wiggle", module=module_with_conn)
-        module_with_conn._device_connection.control_motor_relays.assert_not_awaited()
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.control_motor_relays.assert_not_awaited()
 
     async def test_out_of_range_index_is_ignored(
         self, module_with_conn: Module
     ) -> None:
         """A motor index outside 1-4 is silently ignored."""
         await handle_set("motor_relays/5/set", "open", module=module_with_conn)
-        module_with_conn._device_connection.control_motor_relays.assert_not_awaited()
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.control_motor_relays.assert_not_awaited()
