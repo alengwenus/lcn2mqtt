@@ -5,8 +5,9 @@ from collections.abc import Generator
 
 from pypck import inputs
 
-from lcn2mqtt.handlers.dispatcher import input_handler
+from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.models.config import AppConfig
 
 from ..models.module import Module
 
@@ -24,3 +25,25 @@ def handle_binsensor_input(
             yield MqttMessage(
                 f"binsensor/{idx}/state", "on" if inp.states[idx - 1] else "off"
             )
+
+
+@mqtt_handler("binsensor/+/state")
+async def handle_retained_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a binary sensor."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+    except ValueError:
+        return
+    if not 1 <= idx <= 8:
+        return
+
+    if payload.lower() not in ("on", "off"):
+        _LOG.warning("Invalid binary sensor state payload %r", payload)
+        return
+
+    setattr(module, f"binsensor{idx}", payload.lower() == "on")

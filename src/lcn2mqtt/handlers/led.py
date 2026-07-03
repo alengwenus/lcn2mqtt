@@ -9,6 +9,7 @@ from pypck import inputs, lcn_defs
 
 from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.models.config import AppConfig
 
 from ..models.module import LedState, Module
 
@@ -29,9 +30,7 @@ def handle_input(
 
 @mqtt_handler("led/+/set")
 async def handle_command(
-    subtopic: str,
-    payload: str,
-    module: Module,
+    subtopic: str, payload: str, module: Module, config: AppConfig
 ) -> None:
     """Handle a command to change an LED state."""
     device_connection = module.device_connection
@@ -52,3 +51,25 @@ async def handle_command(
 
     await device_connection.control_led(led, status)
     await device_connection.request_status_leds_and_logic_ops()
+
+
+@mqtt_handler("led/+/state")
+async def handle_retained_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a led."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+    except ValueError:
+        return
+    if not 1 <= idx <= 12:
+        return
+
+    try:
+        setattr(module, f"led{idx}", LedState(payload.lower()))
+    except ValueError:
+        _LOG.warning("Invalid led state payload %r", payload)
+        return

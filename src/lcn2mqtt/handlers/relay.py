@@ -8,6 +8,7 @@ from collections.abc import Generator
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.models.config import AppConfig
 
 from ..models.module import Module, RelayState
 from .dispatcher import input_handler, mqtt_handler
@@ -30,9 +31,7 @@ def handle_relay_status(
 
 @mqtt_handler("relay/+/set")
 async def handle_set(
-    subtopic: str,
-    payload: str,
-    module: Module,
+    subtopic: str, payload: str, module: Module, config: AppConfig
 ) -> None:
     """Handle a command to change a relay state."""
     device_connection = module.device_connection
@@ -41,7 +40,6 @@ async def handle_set(
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
-        parts[2]
     except ValueError:
         return
     if not 1 <= idx <= 8:
@@ -59,3 +57,25 @@ async def handle_set(
     states = [lcn_defs.RelayStateModifier.NOCHANGE] * 8
     states[idx - 1] = modifier
     await device_connection.control_relays(states)
+
+
+@mqtt_handler("relay/+/state")
+async def handle_retained_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a relay."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+    except ValueError:
+        return
+    if not 1 <= idx <= 8:
+        return
+
+    try:
+        setattr(module, f"relay{idx}", RelayState(payload.lower()))
+    except ValueError:
+        _LOG.warning("Invalid relay state payload %r", payload)
+        return

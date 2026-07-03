@@ -8,6 +8,8 @@ from typing import Any
 from pypck import inputs
 
 from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.models.config import AppConfig
+from lcn2mqtt.models.module import Module
 
 _MQTT_HANDLER_REGISTRY: list[tuple[re.Pattern[str], Callable[..., Awaitable[Any]]]] = []
 _INPUT_HANDLER_REGISTRY: list[
@@ -42,13 +44,20 @@ def mqtt_handler(
     return decorator
 
 
-async def dispatch_mqtt(topic: str, payload: str, *args: Any, **kwargs: Any) -> bool:
+async def dispatch_mqtt(
+    topic: str,
+    payload: str,
+    module: Module,
+    config: AppConfig,
+    *args: Any,
+    **kwargs: Any,
+) -> bool:
     """Dispatch an MQTT command to the appropriate handler based on the topic."""
     success = False
     for pattern, func in _MQTT_HANDLER_REGISTRY:
         match = pattern.match(topic)
         if match:
-            await func(topic, payload, *args, **kwargs)
+            await func(topic, payload, module, config, *args, **kwargs)
             success = True
     return success
 

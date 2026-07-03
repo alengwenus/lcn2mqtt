@@ -214,6 +214,10 @@ class Module(BaseModel):
     variable11: Variable = Field(default_factory=Variable)
     variable12: Variable = Field(default_factory=Variable)
 
+    tvar: Variable = alias_property("variable1")  # type: ignore[assignment]
+    r1var: Variable = alias_property("variable2")  # type: ignore[assignment]
+    r2var: Variable = alias_property("variable3")  # type: ignore[assignment]
+
     setpoint1: Variable = Field(default_factory=Variable)
     setpoint2: Variable = Field(default_factory=Variable)
 
@@ -241,14 +245,14 @@ class Module(BaseModel):
     threshold4: Variable = alias_property("threshold14")  # type: ignore[assignment]
     threshold5: Variable = alias_property("threshold15")  # type: ignore[assignment]
 
-    binary1: bool | None = None
-    binary2: bool | None = None
-    binary3: bool | None = None
-    binary4: bool | None = None
-    binary5: bool | None = None
-    binary6: bool | None = None
-    binary7: bool | None = None
-    binary8: bool | None = None
+    binsensor1: bool | None = None
+    binsensor2: bool | None = None
+    binsensor3: bool | None = None
+    binsensor4: bool | None = None
+    binsensor5: bool | None = None
+    binsensor6: bool | None = None
+    binsensor7: bool | None = None
+    binsensor8: bool | None = None
 
     def update_relays(self, states: list[RelayState]) -> list[bool]:
         """Update the relay states and return a list of which ones changed."""
@@ -290,8 +294,8 @@ class Module(BaseModel):
             raise ValueError(f"Invalid number of binary states: {len(states)}")
         changed = [False] * 8
         for i in range(1, 9):
-            if getattr(self, f"binary{i}") != states[i - 1]:
-                setattr(self, f"binary{i}", states[i - 1])
+            if getattr(self, f"binsensor{i}") != states[i - 1]:
+                setattr(self, f"binsensor{i}", states[i - 1])
                 changed[i - 1] = True
         return changed
 
