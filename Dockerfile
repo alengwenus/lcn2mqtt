@@ -1,26 +1,29 @@
 # syntax=docker/dockerfile:1.7
-FROM python:3.12-slim AS builder
+FROM python:3.13-slim AS builder
 
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
     PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 
-RUN pip install --prefix=/install .
+RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.12-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH"
 
 # Non-root user
 RUN useradd --system --create-home --uid 1000 app
 
-COPY --from=builder /install /usr/local
+COPY --from=builder /app/.venv /app/.venv
 
 USER app
 WORKDIR /home/app
