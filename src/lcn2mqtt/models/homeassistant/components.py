@@ -309,6 +309,14 @@ class CoverComponent(BaseComponentModel):
 
     state_topic: str | None = None
     command_topic: str | None = None
+    state_open: str = "open"
+    state_closed: str = "closed"
+    state_opening: str = "opening"
+    state_closing: str = "closing"
+    state_stopped: str = "stopped"
+    payload_open: str = "open"
+    payload_close: str = "close"
+    payload_stop: str = "stop"
 
     platform: Literal["cover"] = Field(default="cover", alias="p")  # type: ignore[assignment]
 
@@ -326,14 +334,23 @@ class CoverComponent(BaseComponentModel):
 
     def set_topics(self) -> None:
         """Set default topics."""
-        if isinstance(self.target, lcn_defs.MotorPort):
-            idx = int(self.target.value) + 1
-            self.state_topic = set_if_none(
-                self.state_topic, f"{self.prefix}/motor/{idx}/state"
-            )
-            self.command_topic = set_if_none(
-                self.command_topic, f"{self.prefix}/motor/{idx}/set"
-            )
+        if self.target == lcn_defs.MotorPort.OUTPUTS:
+            port = "outputs"
+        elif self.target in {
+            lcn_defs.MotorPort.MOTOR1,
+            lcn_defs.MotorPort.MOTOR2,
+            lcn_defs.MotorPort.MOTOR3,
+            lcn_defs.MotorPort.MOTOR4,
+        }:
+            port = str(int(self.target.value) + 1)
+        else:
+            return
+        self.state_topic = set_if_none(
+            self.state_topic, f"{self.prefix}/motor/{port}/state"
+        )
+        self.command_topic = set_if_none(
+            self.command_topic, f"{self.prefix}/motor/{port}/set"
+        )
 
 
 class ClimateComponent(BaseComponentModel):
