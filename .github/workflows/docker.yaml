@@ -1,0 +1,37 @@
+name: Docker
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+  pull_request: ~
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: lcn2mqtt:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify package is importable
+        run: |
+          docker run --rm --entrypoint python lcn2mqtt:test \
+            -c "import lcn2mqtt; print('lcn2mqtt imported successfully')"
+
+      - name: Build via docker compose
+        run: docker compose build
