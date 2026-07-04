@@ -299,4 +299,4 @@ class Bridge:
             lcn_addr
         )  # ensure module exists and is complete before handling input
 
-        await dispatch_mqtt(subtopic, payload, module=module)
+        await dispatch_mqtt(subtopic, payload, module, self.config)

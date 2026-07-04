@@ -9,6 +9,7 @@ from typing import Any
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.models.config import AppConfig
 
 from ..models.module import Module, MotorState
 from .dispatcher import input_handler, mqtt_handler
@@ -45,6 +46,7 @@ async def handle_motor_relays_set(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
@@ -104,6 +106,7 @@ async def handle_motor_outputs_set(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
@@ -132,3 +135,32 @@ async def handle_motor_outputs_set(
 
 
 # ---------- Motors via BS4 ----------
+
+
+# ---------- Retained state ----------
+
+
+@mqtt_handler("motor/+/state")
+async def handle_retained_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a motor."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+        if not 1 <= idx <= 4:
+            return
+        motor = f"motor{idx}"
+    except ValueError:
+        if parts[1] != "outputs":
+            return
+        motor = "motor_outputs"
+
+    try:
+        motor = getattr(module, motor)
+        motor.state = MotorState(payload.lower())
+    except ValueError:
+        _LOG.warning("Invalid motor state payload %r", payload)
+        return

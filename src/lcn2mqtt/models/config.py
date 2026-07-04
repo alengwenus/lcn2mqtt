@@ -121,6 +121,7 @@ class AppConfig(BaseSettings):
 
     identifier: str = "lcn2mqtt"
     log_level: str = "INFO"
+    retained_broker_states: bool = True
     lcn: LcnConfig  # = Field(default_factory=LcnConfig)
     mqtt: MqttConfig  # = Field(default_factory=MqttConfig)
     devices: dict[LcnAddr, DeviceConfig] = Field(default_factory=dict)

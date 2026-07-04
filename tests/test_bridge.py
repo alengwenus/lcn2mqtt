@@ -262,7 +262,7 @@ class TestHandleMqttMessage:
             msg = self._make_msg("lcntest/module/0/7/output/1/set", "on")
             await bridge._handle_mqtt_message(msg)
             mock_dispatch.assert_awaited_once()
-            assert mock_dispatch.call_args.kwargs["module"] is module
+            assert mock_dispatch.call_args.args[2] is module
 
     async def test_payload_decoded_and_lowercased(self, bridge: Bridge) -> None:
         """Byte payloads are decoded to str and lower-cased before dispatch."""

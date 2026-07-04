@@ -11,6 +11,7 @@ from pypck import inputs, lcn_defs
 
 from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.models.config import AppConfig
 
 from ..models.module import Module, Output, OutputState
 
@@ -46,6 +47,7 @@ async def handle_set_brightness(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -74,6 +76,7 @@ async def handle_set_transition(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -102,6 +105,7 @@ async def handle_set(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -141,3 +145,34 @@ async def handle_set(
     brightness = max(0.0, min(100.0, brightness))
 
     await device_connection.dim_output(idx - 1, brightness, ramp)
+
+
+@mqtt_handler("output/+/state", "output/+/brightness")
+async def handle_retained_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a relay."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+        action = parts[2]
+    except ValueError:
+        return
+    if not 1 <= idx <= 4:
+        return
+
+    output = getattr(module, f"output{idx}")
+    if action == "state":
+        try:
+            output.state = OutputState(payload.lower())
+        except ValueError:
+            _LOG.warning("Invalid output state payload %r", payload)
+            return
+    elif action == "brightness":
+        try:
+            output.brightness = float(payload)
+        except (ValueError, ValidationError):
+            _LOG.warning("Invalid output brightness payload %r", payload)
+            return

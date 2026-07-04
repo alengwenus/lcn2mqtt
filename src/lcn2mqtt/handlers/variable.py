@@ -11,6 +11,7 @@ from pypck import inputs, lcn_defs
 
 from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.models.config import AppConfig
 
 from ..models.module import Module
 
@@ -45,6 +46,7 @@ async def handle_variable_change(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change a variable value."""
     device_connection = module.device_connection
@@ -74,13 +76,39 @@ async def handle_variable_change(
         return
 
     unit = getattr(module, f"variable{idx}").unit
-
     if action == "set":
         await device_connection.var_abs(variable, value, unit, serial)
     elif action == "shift":
         await device_connection.var_rel(
             variable, value, unit, lcn_defs.RelVarRef.CURRENT, serial
         )
+
+
+@mqtt_handler("variable/+/state")
+async def handle_retained_variable_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a variable."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+    except ValueError:
+        return
+
+    variable_obj = getattr(module, f"variable{idx}")
+    if variable_obj is None:
+        return
+
+    try:
+        var_value = lcn_defs.VarValue.from_var_unit(
+            float(payload), variable_obj.unit, True
+        )
+        variable_obj.value = var_value.to_native()
+    except (ValueError, TypeError):
+        _LOG.warning("Invalid variable state payload %r", payload)
+        return
 
 
 # ---------- Setpoints ----------
@@ -116,6 +144,7 @@ async def handle_setpoint_change(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change a setpoint value."""
     device_connection = module.device_connection
@@ -162,6 +191,40 @@ async def handle_setpoint_change(
         await device_connection.lock_regulator(idx - 1, True, value)
 
 
+@mqtt_handler("setpoint/+/state", "setpoint/+/locked")
+async def handle_retained_setpoint_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a setpoint."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+        action = parts[2]
+    except ValueError:
+        return
+
+    setpoint_obj = getattr(module, f"setpoint{idx}")
+    if setpoint_obj is None:
+        return
+
+    if action == "state":
+        try:
+            var_value = lcn_defs.VarValue.from_var_unit(
+                float(payload), setpoint_obj.unit, True
+            )
+            setpoint_obj.value = var_value.to_native()
+        except (ValueError, TypeError):
+            _LOG.warning("Invalid setpoint state payload %r", payload)
+            return
+    elif action == "locked":
+        if payload.lower() not in ("on", "off"):
+            _LOG.warning("Invalid setpoint locked payload %r", payload)
+            return
+        setpoint_obj.locked = payload.lower() == "on"
+
+
 # ---------- Thresholds ----------
 
 
@@ -206,6 +269,7 @@ async def handle_threshold_change(
     subtopic: str,
     payload: str,
     module: Module,
+    config: AppConfig,
 ) -> None:
     """Handle a command to change a threshold value."""
     device_connection = module.device_connection
@@ -259,3 +323,38 @@ async def handle_threshold_change(
         await device_connection.var_rel(
             variable, value, unit, lcn_defs.RelVarRef.PROG, serial
         )
+
+
+@mqtt_handler("threshold/+/+/state", "threshold/+/+/locked")
+async def handle_retained_threshold_state(
+    subtopic: str, payload: str, module: Module, config: AppConfig
+) -> None:
+    """Handle a request for the retained state of a threshold."""
+    if not config.retained_broker_states:
+        return
+    parts = subtopic.split("/")
+    try:
+        register = int(parts[1])
+        idx = int(parts[2])
+        action = parts[3]
+        threshold_obj = getattr(module, f"threshold{register}{idx}")
+    except ValueError:
+        return
+
+    if threshold_obj is None:
+        return
+
+    if action == "state":
+        try:
+            var_value = lcn_defs.VarValue.from_var_unit(
+                float(payload), threshold_obj.unit, True
+            )
+            threshold_obj.value = var_value.to_native()
+        except (ValueError, TypeError):
+            _LOG.warning("Invalid threshold state payload %r", payload)
+            return
+    elif action == "locked":
+        if payload.lower() not in ("on", "off"):
+            _LOG.warning("Invalid threshold locked payload %r", payload)
+            return
+        threshold_obj.locked = payload.lower() == "on"

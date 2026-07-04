@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import cast
 from unittest.mock import AsyncMock
 
@@ -13,7 +14,9 @@ from lcn2mqtt.handlers.motor import (
     handle_motor_outputs_status,
     handle_motor_relays_set,
     handle_motor_relays_status,
+    handle_retained_state,
 )
+from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.module import Module, MotorState
 
 # ---------- Motors via relays ----------
@@ -89,27 +92,28 @@ class TestHandleMotorRelaysSet:
     async def test_set_calls_control_motor_relays_command(
         self,
         module_with_conn: Module,
+        config: AppConfig,
         payload: str,
         expected_modifier: lcn_defs.MotorStateModifier,
     ) -> None:
         """The set command calls the device connection's control_motor_relays method."""
-        await handle_motor_relays_set("motor/1/set", payload, module=module_with_conn)
+        await handle_motor_relays_set("motor/1/set", payload, module_with_conn, config)
         conn = cast(AsyncMock, module_with_conn._device_connection)
         conn.control_motor_relays.assert_awaited_once_with(0, expected_modifier)
 
     async def test_unknown_payload_does_not_call_device(
-        self, module_with_conn: Module
+        self, module_with_conn: Module, config: AppConfig
     ) -> None:
         """An unrecognised payload is silently ignored."""
-        await handle_motor_relays_set("motor/1/set", "wiggle", module=module_with_conn)
+        await handle_motor_relays_set("motor/1/set", "wiggle", module_with_conn, config)
         conn = cast(AsyncMock, module_with_conn._device_connection)
         conn.control_motor_relays.assert_not_awaited()
 
     async def test_out_of_range_index_is_ignored(
-        self, module_with_conn: Module
+        self, module_with_conn: Module, config: AppConfig
     ) -> None:
         """A motor index outside 1-4 is silently ignored."""
-        await handle_motor_relays_set("motor/5/set", "open", module=module_with_conn)
+        await handle_motor_relays_set("motor/5/set", "open", module_with_conn, config)
         conn = cast(AsyncMock, module_with_conn._device_connection)
         conn.control_motor_relays.assert_not_awaited()
 
@@ -178,13 +182,14 @@ class TestHandleMotorOutputsSet:
     async def test_set_calls_control_motor_outputs_command(
         self,
         module_with_conn: Module,
+        config: AppConfig,
         payload: str,
         expected_modifier: lcn_defs.MotorStateModifier,
     ) -> None:
         """The set command calls the device connection's control_motor_outputs method."""
         reverse_time = module_with_conn.motor_outputs.reverse_time
         await handle_motor_outputs_set(
-            "motor/outputs/set", payload, module=module_with_conn
+            "motor/outputs/set", payload, module_with_conn, config
         )
         conn = cast(AsyncMock, module_with_conn._device_connection)
         conn.control_motor_outputs.assert_awaited_once_with(
@@ -192,11 +197,56 @@ class TestHandleMotorOutputsSet:
         )
 
     async def test_unknown_payload_does_not_call_device(
-        self, module_with_conn: Module
+        self, module_with_conn: Module, config: AppConfig
     ) -> None:
         """An unrecognised payload is silently ignored."""
         await handle_motor_outputs_set(
-            "motor/outputs/set", "wiggle", module=module_with_conn
+            "motor/outputs/set", "wiggle", module_with_conn, config
         )
         conn = cast(AsyncMock, module_with_conn._device_connection)
         conn.control_motor_outputs.assert_not_awaited()
+
+
+# ---------- Retained state ----------
+
+
+class TestHandleRetainedState:
+    """Tests for the retained state MQTT command handler."""
+
+    @pytest.mark.parametrize(
+        "motor, motor_attr",
+        [("1", "motor1"), ("outputs", "motor_outputs")],
+    )
+    @pytest.mark.parametrize(
+        "payload,expected_state",
+        [
+            ("open", MotorState.OPEN),
+            ("closed", MotorState.CLOSED),
+            ("opening", MotorState.OPENING),
+            ("closing", MotorState.CLOSING),
+        ],
+    )
+    async def test_retained_state_updates_module(
+        self,
+        module: Module,
+        config: AppConfig,
+        payload: str,
+        expected_state: MotorState,
+        motor: str,
+        motor_attr: str,
+    ) -> None:
+        """Sending a retained state command updates the module's motor state."""
+        motor_obj = getattr(module, motor_attr)
+        assert motor_obj.state is None
+        await handle_retained_state(f"motor/{motor}/state", payload, module, config)
+        assert motor_obj.state == expected_state
+
+    async def test_invalid_payload_logs_warning(
+        self, module: Module, config: AppConfig, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An unknown payload logs a warning and does not update the module."""
+        with caplog.at_level(logging.WARNING):
+            await handle_retained_state("motor/1/state", "unknown", module, config)
+        assert any(
+            "Invalid motor state payload" in record.message for record in caplog.records
+        )

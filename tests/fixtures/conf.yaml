@@ -1,5 +1,6 @@
 identifier: lcntest
 log_level: "debug"
+retained_broker_states: true
 
 lcn:
   host: 192.168.2.10

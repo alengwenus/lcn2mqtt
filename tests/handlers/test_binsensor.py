@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
+import pytest
 from pypck import inputs
 
-from lcn2mqtt.handlers.binsensor import handle_binsensor_input
+from lcn2mqtt.handlers.binsensor import handle_binsensor_input, handle_retained_state
+from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.module import Module
 
 
@@ -55,3 +59,37 @@ class TestHandleBinsensorInput:
         list(handle_binsensor_input(inp, module=module))
         messages = list(handle_binsensor_input(inp, module=module))
         assert messages == []
+
+
+class TestHandleRetainedState:
+    """Tests for the retained state MQTT command handler."""
+
+    @pytest.mark.parametrize(
+        "payload,expected_state",
+        [
+            ("on", True),
+            ("off", False),
+        ],
+    )
+    async def test_retained_state_updates_module(
+        self,
+        module: Module,
+        config: AppConfig,
+        payload: str,
+        expected_state: bool,
+    ) -> None:
+        """Sending a retained state command updates the module's binsensor state."""
+        assert module.binsensor1 is None
+        await handle_retained_state("binsensor/1/state", payload, module, config)
+        assert module.binsensor1 == expected_state
+
+    async def test_invalid_payload_logs_warning(
+        self, module: Module, config: AppConfig, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An unknown payload logs a warning and does not update the module."""
+        with caplog.at_level(logging.WARNING):
+            await handle_retained_state("binsensor/1/state", "unknown", module, config)
+        assert any(
+            "Invalid binary sensor state payload" in record.message
+            for record in caplog.records
+        )
