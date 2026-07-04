@@ -41,7 +41,37 @@ def handle_motor_relays_status(
             yield MqttMessage(f"motor/{i}/state", states[i - 1].value)
 
 
-@mqtt_handler("motor/+/set")
+@input_handler(inputs.ModStatusMotorPositionModule)
+def handle_motor_position_module_status(
+    inp: inputs.ModStatusMotorPositionModule, module: Module
+) -> Generator[MqttMessage]:
+    """Handle a motor position status input, update the module state, and publish any changes."""
+    motor = inp.motor + 1
+    position = inp.position
+
+    motor_obj = getattr(module, f"motor{motor}")
+    did_change = motor_obj.update_position(position)
+
+    if did_change:
+        yield MqttMessage(f"motor/{motor}/position", f"{position}")
+
+
+@input_handler(inputs.ModStatusMotorPositionBS4)
+def handle_motor_position_module_bs4(
+    inp: inputs.ModStatusMotorPositionBS4, module: Module
+) -> Generator[MqttMessage]:
+    """Handle a motor position status input, update the module state, and publish any changes."""
+    motor = inp.motor + 1
+    position = inp.position
+
+    motor_obj = getattr(module, f"motor{motor}")
+    did_change = motor_obj.update_position(position)
+
+    if did_change:
+        yield MqttMessage(f"motor/{motor}/position", f"{position}")
+
+
+@mqtt_handler("motor/+/set", "motor/+/set_position")
 async def handle_motor_relays_set(
     subtopic: str,
     payload: str,
@@ -63,6 +93,9 @@ async def handle_motor_relays_set(
     if not 1 <= idx <= 4:
         return
 
+    motor_obj = getattr(module, f"motor{idx}")
+    positioning_mode = motor_obj.positioning_mode
+
     if action == "set":
         modifier_map = {
             "open": lcn_defs.MotorStateModifier.UP,
@@ -74,7 +107,17 @@ async def handle_motor_relays_set(
         modifier = modifier_map.get(payload)
         if modifier is None:
             return
-        await device_connection.control_motor_relays(idx - 1, modifier)
+        await device_connection.control_motor_relays(
+            idx - 1, modifier, positioning_mode
+        )
+    elif action == "set_position":
+        try:
+            position = float(payload)
+        except ValueError as exc:
+            raise ValueError(f"Invalid position payload: {payload}") from exc
+        await device_connection.control_motor_relays_position(
+            idx - 1, position, positioning_mode
+        )
 
 
 # ---------- Motors via outputs ----------
@@ -134,13 +177,10 @@ async def handle_motor_outputs_set(
         )
 
 
-# ---------- Motors via BS4 ----------
-
-
 # ---------- Retained state ----------
 
 
-@mqtt_handler("motor/+/state")
+@mqtt_handler("motor/+/state", "motor/+/position")
 async def handle_retained_state(
     subtopic: str, payload: str, module: Module, config: AppConfig
 ) -> None:
@@ -158,9 +198,17 @@ async def handle_retained_state(
             return
         motor = "motor_outputs"
 
-    try:
-        motor = getattr(module, motor)
-        motor.state = MotorState(payload.lower())
-    except ValueError:
-        _LOG.warning("Invalid motor state payload %r", payload)
+    action = parts[2]
+
+    motor_obj = getattr(module, motor)
+    if action == "state":
+        try:
+            motor_obj.state = MotorState(payload.lower())
+        except ValueError:
+            _LOG.warning("Invalid motor state payload %r", payload)
+    elif action == "position":
+        try:
+            motor_obj.position = float(payload)
+        except ValueError:
+            _LOG.warning("Invalid motor position payload %r", payload)
         return

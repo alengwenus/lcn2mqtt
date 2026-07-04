@@ -129,6 +129,40 @@ class Motor(BaseModel):
     state: MotorState | None = None
     position: MotorValue = None
     tilt: MotorValue = None
+    positioning_mode: lcn_defs.MotorPositioningMode | None = (
+        lcn_defs.MotorPositioningMode.NONE
+    )
+
+    @field_validator("positioning_mode", mode="before")
+    @classmethod
+    def _validate_positioning_mode(cls, v: str) -> lcn_defs.MotorPositioningMode:
+        """Validate the motor positioning mode."""
+        try:
+            positioning_mode = lcn_defs.MotorPositioningMode(v.upper())
+        except ValueError as exc:
+            raise ValueError(f"Invalid motor positioning mode: {v}") from exc
+        return positioning_mode
+
+    def update_state(self, state: MotorState) -> bool:
+        """Update the motor state and return True if it changed."""
+        if self.state != state:
+            self.state = state
+            return True
+        return False
+
+    def update_position(self, position: MotorValue) -> bool:
+        """Update the motor position and return True if it changed."""
+        if self.position != position:
+            self.position = position
+            return True
+        return False
+
+    def update_tilt(self, tilt: MotorValue) -> bool:
+        """Update the motor tilt and return True if it changed."""
+        if self.tilt != tilt:
+            self.tilt = tilt
+            return True
+        return False
 
 
 class MotorOutput(BaseModel):
@@ -270,11 +304,9 @@ class Module(BaseModel):
         if len(states) != 4:
             raise ValueError(f"Invalid number of motors: {len(states)}")
         changed = [False] * 4
-        for i in range(1, 5):
-            motor = getattr(self, f"motor{i}")
-            if motor.state != states[i - 1]:
-                motor.state = states[i - 1]
-                changed[i - 1] = True
+        for idx in range(4):
+            motor = getattr(self, f"motor{idx + 1}")
+            changed[idx] = motor.update_state(states[idx])
         return changed
 
     def update_leds(self, states: list[LedState]) -> list[bool]:
