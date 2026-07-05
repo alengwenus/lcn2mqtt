@@ -42,7 +42,7 @@ def device(module_addr: LcnAddr) -> DeviceConfig:
     """Return a minimal DeviceConfig with default serials."""
     dev = DeviceConfig(address=module_addr)
     assert dev.homeassistant is not None
-    dev.homeassistant.inject_base_topic("lcntest")
+    dev.homeassistant.update_base_topic("lcntest")
     return dev
 
 
@@ -222,7 +222,7 @@ class TestPublishModules:
         module_addr = LcnAddr(0, 7, False)
         device = DeviceConfig(address=module_addr)
         assert device.homeassistant is not None
-        device.homeassistant.inject_base_topic("lcntest")
+        device.homeassistant.update_base_topic("lcntest")
 
         modules = {
             group_addr: DeviceConfig(address=group_addr),
@@ -242,7 +242,7 @@ class TestPublishModules:
         for addr in addrs:
             dev = DeviceConfig(address=addr)
             assert dev.homeassistant is not None
-            dev.homeassistant.inject_base_topic("lcntest")
+            dev.homeassistant.update_base_topic("lcntest")
             modules[addr] = dev
 
         await manager.publish_modules(modules)

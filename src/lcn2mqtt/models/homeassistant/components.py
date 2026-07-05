@@ -19,9 +19,9 @@ class BaseComponentModel(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
-    address: LcnAddr = Field(..., exclude=True)
+    address: LcnAddr | None = Field(default=None, exclude=True)
     base_topic: str = Field(default="lcn2mqtt", exclude=True)
-    identifier: str = Field(..., exclude=True)
+    identifier: str | None = Field(default=None, exclude=True)
 
     unique_id: str | None = Field(default=None, alias="uniq_id")
     name: str | None = Field(default=None)
@@ -32,24 +32,25 @@ class BaseComponentModel(BaseModel):
     @property
     def prefix(self) -> str:
         """MQTT topic prefix for this component."""
+        assert self.address is not None, "Address must be set before accessing prefix"
         return (
             f"{self.base_topic}/module/{self.address.seg_id:d}/{self.address.addr_id:d}"
         )
 
-    @model_validator(mode="after")
-    def set_name(self) -> "BaseComponentModel":
-        """Set default name if not provided."""
+    def update_properties(self, address: LcnAddr, identifier: str) -> None:
+        """Update properties based on the current address and identifier."""
+        self.address = address
+        self.identifier = identifier
         if self.name is None:
-            self.name = self.identifier.replace("_", " ").capitalize()
-        return self
+            self.name = identifier.replace("_", " ").capitalize()
 
-    def set_base_topic(self, base_topic: str) -> None:
+    def update_base_topic(self, base_topic: str) -> None:
         """Set the base_topic and update topics accordingly."""
         self.base_topic = base_topic
-        self.set_unique_id()
-        self.set_topics()
+        self.update_unique_id()
+        self.update_topics()
 
-    def set_unique_id(self) -> None:
+    def update_unique_id(self) -> None:
         """Set the unique ID and update topics accordingly."""
         if self.unique_id is None:
             self.unique_id = (
@@ -61,8 +62,8 @@ class BaseComponentModel(BaseModel):
         return self.model_dump(exclude_none=True)
 
     @abstractmethod
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
 
 
 class SwitchComponent(BaseComponentModel):
@@ -93,8 +94,8 @@ class SwitchComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
         idx = int(self.target.value) + 1
         if isinstance(self.target, lcn_defs.RelayPort):
             self.state_topic = set_if_none(
@@ -121,9 +122,9 @@ class LightComponent(SwitchComponent):
 
     platform: Literal["light"] = Field(default="light", alias="p")  # type: ignore[assignment]
 
-    def set_topics(self) -> None:
-        """Set default topics."""
-        super().set_topics()
+    def update_topics(self) -> None:
+        """Update default topics."""
+        super().update_topics()
 
         if not isinstance(self.target, lcn_defs.OutputPort):
             return
@@ -161,8 +162,8 @@ class BinarySensorComponent(BaseComponentModel):
                 raise ValueError(f"Invalid source '{value}'.")
         return value
 
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
         self.state_topic = set_if_none(
             self.state_topic,
             f"{self.prefix}/binsensor/{int(self.source.value) + 1}/state",
@@ -191,8 +192,8 @@ class SensorComponent(BaseComponentModel):
             raise ValueError(f"Invalid source '{value}'.")
         return value
 
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
         if self.source in set(lcn_defs.Var.variables()):
             idx = lcn_defs.Var.to_var_id(self.source) + 1
             self.state_topic = set_if_none(
@@ -238,8 +239,8 @@ class NumberComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return var
 
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
         if self.target in set(lcn_defs.Var.variables()):
             idx = lcn_defs.Var.to_var_id(self.target) + 1
             self.state_topic = set_if_none(
@@ -290,8 +291,8 @@ class SelectComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
         if isinstance(self.target, lcn_defs.LedPort):
             idx = int(self.target.value) + 1
             self.state_topic = set_if_none(
@@ -332,8 +333,8 @@ class CoverComponent(BaseComponentModel):
                 raise ValueError(f"Invalid target '{value}'.")
         return value
 
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
         if self.target == lcn_defs.MotorPort.OUTPUTS:
             port = "outputs"
         elif self.target in {
@@ -394,8 +395,8 @@ class ClimateComponent(BaseComponentModel):
 
         return data
 
-    def set_topics(self) -> None:
-        """Set default topics."""
+    def update_topics(self) -> None:
+        """Update default topics."""
         temperature_idx = lcn_defs.Var.to_set_point_id(self.temperature) + 1
         self.temperature_state_topic = set_if_none(
             self.temperature_state_topic,

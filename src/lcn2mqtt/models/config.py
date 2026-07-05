@@ -11,7 +11,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
     field_validator,
     model_validator,
 )
@@ -51,17 +50,9 @@ class DeviceConfig(Module):
 
     model_config = ConfigDict(extra="forbid")
 
-    homeassistant: HomeAssistantModuleDiscoveryConfig | None = Field(default=None)
-
-    @model_validator(mode="before")
-    @classmethod
-    def configure_homeassistant(cls, data: Any) -> Any:
-        """Configure the Home Assistant settings for a device."""
-        if "homeassistant" not in data or not isinstance(data["homeassistant"], dict):
-            data["homeassistant"] = {}
-
-        data["homeassistant"].setdefault("address", data["address"])
-        return data
+    homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
+        default_factory=HomeAssistantModuleDiscoveryConfig
+    )
 
 
 class LcnConfig(BaseModel):
@@ -85,18 +76,12 @@ class LcnConfig(BaseModel):
 class MqttConfig(BaseModel):
     """MQTT connection and topic configuration."""
 
+    base_topic: str = "lcn2mqtt"
     host: str
     port: int = 1883
     username: str | None = None
     password: str | None = None
     qos: int = 0
-
-    _base_topic: str = PrivateAttr(default="lcn2mqtt")
-
-    @property
-    def base_topic(self) -> str:
-        """MQTT topic prefix for all components."""
-        return self._base_topic
 
 
 class DiscoveryConfig(BaseModel):
@@ -119,7 +104,6 @@ class AppConfig(BaseSettings):
         extra="ignore",
     )
 
-    identifier: str = "lcn2mqtt"
     log_level: str = "INFO"
     retained_broker_states: bool = True
     lcn: LcnConfig  # = Field(default_factory=LcnConfig)
@@ -143,15 +127,6 @@ class AppConfig(BaseSettings):
         """Convert log level to uppercase."""
         return v.upper()
 
-    @model_validator(mode="after")
-    def set_base_topic(self) -> AppConfig:
-        """Inject the global base_topic into device configs."""
-        self.mqtt._base_topic = self.identifier
-        for device in self.devices.values():
-            if device.homeassistant is not None:
-                device.homeassistant.inject_base_topic(self.identifier)
-        return self
-
     @model_validator(mode="before")
     @classmethod
     def to_lcn_addr(cls, data: Any) -> Any:
@@ -169,11 +144,12 @@ class AppConfig(BaseSettings):
             device["address"] = lcn_addr
             devices[lcn_addr] = device
 
+            # Log applied overrides
             flattened = flatten_with_values(
                 {
                     key: value
                     for key, value in device.items()
-                    if key in Module.model_fields
+                    if key in Module.model_fields and key != "address"
                 }
             )
             for path, value in flattened:
@@ -219,11 +195,26 @@ class AppConfig(BaseSettings):
         )
 
 
+def finalize_config(config: AppConfig) -> None:
+    """Finalize the configuration by injecting additional parameters."""
+    for device in config.devices.values():
+        if device.homeassistant is not None:
+            device.homeassistant.address = device.address
+            # update discovery components
+            device.homeassistant.prepare_auto_components()
+            device.homeassistant.update_components()
+
+            # inject mqtt base_topic into discovery components
+            device.homeassistant.update_base_topic(config.mqtt.base_topic)
+
+
 def load_config(
     yaml_file: str = "data/configuration.yaml",
 ) -> AppConfig:
     """Load configuration from the specified YAML file and environment variables."""
-    return AppConfig(yaml_file=yaml_file)
+    config = AppConfig(yaml_file=yaml_file)
+    finalize_config(config)
+    return config
 
 
 if __name__ == "__main__":

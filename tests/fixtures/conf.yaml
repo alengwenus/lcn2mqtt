@@ -1,4 +1,3 @@
-identifier: lcntest
 log_level: "debug"
 retained_broker_states: true
 
@@ -12,6 +11,7 @@ lcn:
   acknowledge_commands: false
 
 mqtt:
+  base_topic: "lcntest"
   host: mqtt.local
   port: 1883
   username: mqtt

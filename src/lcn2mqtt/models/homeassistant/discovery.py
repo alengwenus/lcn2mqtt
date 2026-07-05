@@ -7,7 +7,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    model_validator,
 )
 from pypck import lcn_defs
 from pypck.lcn_addr import LcnAddr
@@ -55,9 +54,9 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    address: LcnAddr = Field(..., exclude=True)
+    address: LcnAddr | None = Field(default=None, exclude=True)
 
-    include: set[str] = Field(default_factory=set)
+    include: set[str] = set(STANDARD_COMPONENTS)
     exclude: set[str] = Field(default_factory=set)
 
     binary_sensors: dict[str, BinarySensorComponent] = Field(default_factory=dict)
@@ -68,77 +67,6 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
     selects: dict[str, SelectComponent] = Field(default_factory=dict)
     covers: dict[str, CoverComponent] = Field(default_factory=dict)
     climates: dict[str, ClimateComponent] = Field(default_factory=dict)
-
-    @model_validator(mode="before")
-    @classmethod
-    def setup_components(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """Set up component models from the config."""
-        for platform in PLATFORMS:
-            if platform not in data or not isinstance(data[platform], dict):
-                data[platform] = {}
-
-        # Process wildcard entries in include/exclude
-        include = {
-            cmp.lower()
-            for include_cmp in data.get("include", STANDARD_COMPONENTS)
-            for cmp in ALL_COMPONENTS
-            if fnmatch.fnmatch(cmp.lower(), include_cmp)
-        }
-        exclude = {
-            cmp.lower()
-            for exclude_cmp in data.get("exclude", set())
-            for cmp in ALL_COMPONENTS
-            if fnmatch.fnmatch(cmp.lower(), exclude_cmp)
-        }
-        take_cmps = include - exclude
-
-        # Automatically set up include/exclude components
-        for cmp in take_cmps:
-            if cmp in RELAYS:
-                identifier = target = cmp
-                data["switches"][identifier] = {
-                    "target": target,
-                }
-            elif cmp in OUTPUTS:
-                identifier = target = cmp
-                data["lights"][identifier] = {
-                    "target": target,
-                }
-            elif cmp in BINSENSORS:
-                identifier = source = cmp
-                data["binary_sensors"][identifier] = {
-                    "source": source,
-                }
-            elif cmp in VARS:
-                identifier = target = cmp
-                data["numbers"][identifier] = {
-                    "target": target,
-                }
-            elif cmp in LEDS:
-                identifier = target = cmp
-                data["selects"][identifier] = {
-                    "target": target,
-                }
-            elif cmp in MOTORS:
-                identifier = target = cmp
-                data["covers"][identifier] = {
-                    "target": target,
-                }
-
-        # Set properties of manual and automatically defined components
-        for platform in PLATFORMS:
-            for identifier, component in data.get(platform, {}).items():
-                if isinstance(component, dict):
-                    component["address"] = data["address"]
-                    component["identifier"] = identifier
-
-        return data
-
-    def inject_base_topic(self, base_topic: str) -> None:
-        """Inject the global base_topic into component models."""
-        for platform in PLATFORMS:
-            for component in getattr(self, platform).values():
-                component.set_base_topic(base_topic)
 
     @property
     def components(self) -> dict[str, Any]:
@@ -153,3 +81,52 @@ class HomeAssistantModuleDiscoveryConfig(BaseModel):
             **self.covers,
             **self.climates,
         }
+
+    def prepare_auto_components(self) -> None:
+        """Update the automatically included components based on include/exclude."""
+        include = {
+            cmp.lower()
+            for include_cmp in self.include
+            for cmp in ALL_COMPONENTS
+            if fnmatch.fnmatch(cmp.lower(), include_cmp)
+        }
+        exclude = {
+            cmp.lower()
+            for exclude_cmp in self.exclude or set()
+            for cmp in ALL_COMPONENTS
+            if fnmatch.fnmatch(cmp.lower(), exclude_cmp)
+        }
+        take_cmps = include - exclude
+
+        # Automatically set up include/exclude components
+        for cmp in take_cmps:
+            if cmp in RELAYS:
+                identifier = target = cmp
+                self.switches.setdefault(identifier, SwitchComponent(target=target))
+            elif cmp in OUTPUTS:
+                identifier = target = cmp
+                self.lights.setdefault(identifier, LightComponent(target=target))
+            elif cmp in BINSENSORS:
+                identifier = source = cmp
+                self.binary_sensors.setdefault(
+                    identifier, BinarySensorComponent(source=source)
+                )
+            elif cmp in VARS:
+                identifier = target = cmp
+                self.numbers.setdefault(identifier, NumberComponent(target=target))
+            elif cmp in LEDS:
+                identifier = target = cmp
+                self.selects.setdefault(identifier, SelectComponent(target=target))
+            elif cmp in MOTORS:
+                identifier = target = cmp
+                self.covers.setdefault(identifier, CoverComponent(target=target))
+
+    def update_components(self) -> None:
+        """Update the components with the current address and identifier."""
+        for identifier, component in self.components.items():
+            component.update_properties(self.address, identifier)
+
+    def update_base_topic(self, base_topic: str) -> None:
+        """Set the base topic for all components."""
+        for component in self.components.values():
+            component.update_base_topic(base_topic)
