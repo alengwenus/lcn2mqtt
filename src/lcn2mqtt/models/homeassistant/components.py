@@ -308,6 +308,10 @@ class CoverComponent(BaseComponentModel):
 
     target: lcn_defs.MotorPort = Field(..., exclude=True)
 
+    positioning_mode: lcn_defs.MotorPositioningMode = Field(
+        default=lcn_defs.MotorPositioningMode.NONE, exclude=True
+    )
+
     state_topic: str | None = None
     command_topic: str | None = None
     state_open: str = "open"

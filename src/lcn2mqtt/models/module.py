@@ -172,6 +172,9 @@ class MotorOutput(BaseModel):
 
     state: MotorState | None = None
     reverse_time: lcn_defs.MotorReverseTime = lcn_defs.MotorReverseTime.RT70
+    positioning_mode: lcn_defs.MotorPositioningMode | None = (
+        lcn_defs.MotorPositioningMode.NONE
+    )
 
     @field_validator("reverse_time", mode="before")
     @classmethod
