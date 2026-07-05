@@ -308,8 +308,14 @@ class CoverComponent(BaseComponentModel):
 
     target: lcn_defs.MotorPort = Field(..., exclude=True)
 
+    positioning_mode: lcn_defs.MotorPositioningMode = Field(
+        default=lcn_defs.MotorPositioningMode.NONE, exclude=True
+    )
+
     state_topic: str | None = None
     command_topic: str | None = None
+    position_topic: str | None = None
+    set_position_topic: str | None = None
     state_open: str = "open"
     state_closed: str = "closed"
     state_opening: str = "opening"
@@ -352,6 +358,14 @@ class CoverComponent(BaseComponentModel):
         self.command_topic = set_if_none(
             self.command_topic, f"{self.prefix}/motor/{port}/set"
         )
+
+        if self.positioning_mode != lcn_defs.MotorPositioningMode.NONE:
+            self.position_topic = set_if_none(
+                self.position_topic, f"{self.prefix}/motor/{port}/position"
+            )
+            self.set_position_topic = set_if_none(
+                self.set_position_topic, f"{self.prefix}/motor/{port}/set_position"
+            )
 
 
 class ClimateComponent(BaseComponentModel):

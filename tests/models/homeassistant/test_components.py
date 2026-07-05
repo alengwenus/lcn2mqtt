@@ -86,11 +86,21 @@ def make_select(target: str, name: str | None = None, **kwargs: Any) -> SelectCo
     return cmp
 
 
-def make_cover(target: str, name: str | None = None, **kwargs: Any) -> CoverComponent:
+def make_cover(
+    target: str,
+    name: str | None = None,
+    positioning_mode: lcn_defs.MotorPositioningMode = lcn_defs.MotorPositioningMode.NONE,
+    **kwargs: Any,
+) -> CoverComponent:
     """Return a CoverComponent with the given target and kwargs."""
     name = name or target.replace("_", " ").capitalize()
     cmp = CoverComponent(
-        address=ADDR, identifier=target, name=name, target=target, **kwargs
+        address=ADDR,
+        identifier=target,
+        name=name,
+        target=target,
+        positioning_mode=positioning_mode,
+        **kwargs,
     )
     cmp.update_base_topic(BASE_TOPIC)
     return cmp
@@ -355,6 +365,22 @@ class TestCoverComponent:
         """Cover command topic uses motor/<n>/set."""
         c = make_cover("motor1")
         assert c.command_topic == f"{PREFIX}/motor/1/set"
+
+    def test_position_topic(self) -> None:
+        """Cover position topic uses motor/<n>/position."""
+        c = make_cover("motor1", positioning_mode=lcn_defs.MotorPositioningMode.MODULE)
+        assert c.position_topic == f"{PREFIX}/motor/1/position"
+
+    def test_set_position_topic(self) -> None:
+        """Cover set position topic uses motor/<n>/set_position."""
+        c = make_cover("motor1", positioning_mode=lcn_defs.MotorPositioningMode.MODULE)
+        assert c.set_position_topic == f"{PREFIX}/motor/1/set_position"
+
+    def test_position_topics_none_if_positioning_mode_none(self) -> None:
+        """If positioning_mode is NONE, position topics are None."""
+        c = make_cover("motor1", positioning_mode=lcn_defs.MotorPositioningMode.NONE)
+        assert c.position_topic is None
+        assert c.set_position_topic is None
 
     def test_motor_index_reflects_port(self) -> None:
         """Motor 2 uses index 2 in the topic."""

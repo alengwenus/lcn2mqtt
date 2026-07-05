@@ -204,6 +204,15 @@ def finalize_config(config: AppConfig) -> None:
             device.homeassistant.prepare_auto_components()
             device.homeassistant.update_components()
 
+            # inject positioning_mode from device to cover components
+            for cover in device.homeassistant.covers.values():
+                motor = cover.target.name.lower()
+                motor = "motor_outputs" if motor == "outputs" else motor
+
+                motor_obj = getattr(device, motor, None)
+                if motor_obj is not None:
+                    cover.positioning_mode = motor_obj.positioning_mode
+
             # inject mqtt base_topic into discovery components
             device.homeassistant.update_base_topic(config.mqtt.base_topic)
 

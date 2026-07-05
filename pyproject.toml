@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic[mypy]>=2.13.4",
-    "pypck>=0.9.14",
+    "pypck==0.9.15a3",
     "aiomqtt>=2.3.0",
     "pydantic-settings>=2.14.1",
     "pyyaml>=6.0",

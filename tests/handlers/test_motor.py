@@ -99,7 +99,9 @@ class TestHandleMotorRelaysSet:
         """The set command calls the device connection's control_motor_relays method."""
         await handle_motor_relays_set("motor/1/set", payload, module_with_conn, config)
         conn = cast(AsyncMock, module_with_conn._device_connection)
-        conn.control_motor_relays.assert_awaited_once_with(0, expected_modifier)
+        conn.control_motor_relays.assert_awaited_once_with(
+            0, expected_modifier, lcn_defs.MotorPositioningMode.NONE
+        )
 
     async def test_unknown_payload_does_not_call_device(
         self, module_with_conn: Module, config: AppConfig

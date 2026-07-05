@@ -206,7 +206,7 @@ requires-dist = [
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pydantic", extras = ["mypy"], specifier = ">=2.13.4" },
     { name = "pydantic-settings", specifier = ">=2.14.1" },
-    { name = "pypck", specifier = ">=0.9.14" },
+    { name = "pypck", specifier = "==0.9.15a3" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 
@@ -481,11 +481,11 @@ wheels = [
 
 [[package]]
 name = "pypck"
-version = "0.9.14"
+version = "0.9.15a3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fe/35/93fb864670380ccf5c2cd0ff5161c2eff312d4b804f0fa87abbaaae8ef02/pypck-0.9.14.tar.gz", hash = "sha256:9b33d65fbcb478e5f46e255906d8d4863512d288b4c0d019fde25fe275ef3a39", size = 55235, upload-time = "2026-07-01T13:56:16.052Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/13/13988b01e2921ec9bbb4bc057be433dc9fd9c576ed82a687616b3ed8e82b/pypck-0.9.15a3.tar.gz", hash = "sha256:34dc6a6ec393ae27612bd1452888fbd36ca663dd6ca2d0d3eaf467dbcd857aba", size = 55402, upload-time = "2026-07-05T14:16:55.346Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/08/0310e8871beff889246a51063a338aec775ccc43bc895c1c02be41dddd04/pypck-0.9.14-py3-none-any.whl", hash = "sha256:a1c7a657518c765b93b0a9876e16b01971e815d52e2c5a8e3ae541cb3a401559", size = 45126, upload-time = "2026-07-01T13:56:14.64Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/27/f5f613baa9629300d355de0d64c16a1ce45beae8735589999439110b5c93/pypck-0.9.15a3-py3-none-any.whl", hash = "sha256:f36f80423075a71af714841731a576f3de925be582fc046e89964dc0a1a9b009", size = 45288, upload-time = "2026-07-05T14:16:54.297Z" },
 ]
 
 [[package]]
