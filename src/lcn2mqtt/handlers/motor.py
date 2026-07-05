@@ -50,10 +50,14 @@ def handle_motor_position_module_status(
     position = inp.position
 
     motor_obj = getattr(module, f"motor{motor}")
-    did_change = motor_obj.update_position(position)
 
-    if did_change:
+    did_change_relays = motor_obj.update_position(position)
+    if did_change_relays:
         yield MqttMessage(f"motor/{motor}/position", f"{position}")
+
+    did_change_outputs = module.motor_outputs.update_position(position)
+    if did_change_outputs:
+        yield MqttMessage("motor/outputs/position", f"{position}")
 
 
 @input_handler(inputs.ModStatusMotorPositionBS4)
