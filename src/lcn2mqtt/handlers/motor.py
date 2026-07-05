@@ -112,7 +112,7 @@ async def handle_motor_relays_set(
         )
     elif action == "set_position":
         try:
-            position = float(payload)
+            position = int(payload)
         except ValueError as exc:
             raise ValueError(f"Invalid position payload: {payload}") from exc
         await device_connection.control_motor_relays_position(
