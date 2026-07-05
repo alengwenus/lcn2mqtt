@@ -141,7 +141,12 @@ def handle_motor_outputs_status(
             state = MotorState.OPENING
         else:
             state = MotorState.CLOSING
-    # cover is assumed to be closed if we were in closing state before
+
+    # motor is off, but we don't know if it is open or closed
+    elif module.motor_outputs.positioning_mode == lcn_defs.MotorPositioningMode.MODULE:
+        return  # open/closed is handled by positioning status inputs, so we don't need to publish anything here
+
+    # No positioning: cover is assumed to be closed if we were in closing state before
     elif module.motor_outputs.state == MotorState.CLOSING:
         state = MotorState.CLOSED
     else:
@@ -157,11 +162,19 @@ def handle_motor_outputs_position_module_status(
     inp: inputs.ModStatusMotorPositionModule, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
+    if module.motor_outputs.positioning_mode != lcn_defs.MotorPositioningMode.MODULE:
+        return
+
     motor = inp.motor + 1
     position = inp.position
 
     if motor != 4:
         return  # only handle motor 4 for outputs
+
+    if position == 100:
+        yield MqttMessage("motor/outputs/state", MotorState.OPEN.value)
+    elif position == 0:
+        yield MqttMessage("motor/outputs/state", MotorState.CLOSED.value)
 
     did_change = module.motor_outputs.update_position(position)
     if did_change:
