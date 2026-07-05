@@ -24,54 +24,75 @@ BASE_TOPIC = "lcntest"
 PREFIX = f"{BASE_TOPIC}/module/0/7"
 
 
-def make_switch(target: str, **kwargs: Any) -> SwitchComponent:
+def make_switch(target: str, name: str | None = None, **kwargs: Any) -> SwitchComponent:
     """Return a SwitchComponent with the given target and kwargs."""
-    cmp = SwitchComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_base_topic(BASE_TOPIC)
-    return cmp
-
-
-def make_light(target: str, **kwargs: Any) -> LightComponent:
-    """Return a LightComponent with the given target and kwargs."""
-    cmp = LightComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_base_topic(BASE_TOPIC)
-    return cmp
-
-
-def make_binary_sensor(source: str, **kwargs: Any) -> BinarySensorComponent:
-    """Return a BinarySensorComponent with the given source and kwargs."""
-    cmp = BinarySensorComponent(
-        address=ADDR, identifier=source, source=source, **kwargs
+    name = name or target.replace("_", " ").capitalize()
+    cmp = SwitchComponent(
+        address=ADDR, identifier=target, name=name, target=target, **kwargs
     )
-    cmp.set_base_topic(BASE_TOPIC)
+    cmp.update_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_sensor(source: str, **kwargs: Any) -> SensorComponent:
+def make_light(target: str, name: str | None = None, **kwargs: Any) -> LightComponent:
+    """Return a LightComponent with the given target and kwargs."""
+    name = name or target.replace("_", " ").capitalize()
+    cmp = LightComponent(
+        address=ADDR, identifier=target, name=name, target=target, **kwargs
+    )
+    cmp.update_base_topic(BASE_TOPIC)
+    return cmp
+
+
+def make_binary_sensor(
+    source: str, name: str | None = None, **kwargs: Any
+) -> BinarySensorComponent:
+    """Return a BinarySensorComponent with the given source and kwargs."""
+    name = name or source.replace("_", " ").capitalize()
+    cmp = BinarySensorComponent(
+        address=ADDR, identifier=source, name=name, source=source, **kwargs
+    )
+    cmp.update_base_topic(BASE_TOPIC)
+    return cmp
+
+
+def make_sensor(source: str, name: str | None = None, **kwargs: Any) -> SensorComponent:
     """Return a SensorComponent with the given source and kwargs."""
-    cmp = SensorComponent(address=ADDR, identifier=source, source=source, **kwargs)
-    cmp.set_base_topic(BASE_TOPIC)
+    name = name or source.replace("_", " ").capitalize()
+    cmp = SensorComponent(
+        address=ADDR, identifier=source, name=name, source=source, **kwargs
+    )
+    cmp.update_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_number(target: str, **kwargs: Any) -> NumberComponent:
+def make_number(target: str, name: str | None = None, **kwargs: Any) -> NumberComponent:
     """Return a NumberComponent with the given target and kwargs."""
-    cmp = NumberComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_base_topic(BASE_TOPIC)
+    name = name or target.replace("_", " ").capitalize()
+    cmp = NumberComponent(
+        address=ADDR, identifier=target, name=name, target=target, **kwargs
+    )
+    cmp.update_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_select(target: str, **kwargs: Any) -> SelectComponent:
+def make_select(target: str, name: str | None = None, **kwargs: Any) -> SelectComponent:
     """Return a SelectComponent with the given target and kwargs."""
-    cmp = SelectComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_base_topic(BASE_TOPIC)
+    name = name or target.replace("_", " ").capitalize()
+    cmp = SelectComponent(
+        address=ADDR, identifier=target, name=name, target=target, **kwargs
+    )
+    cmp.update_base_topic(BASE_TOPIC)
     return cmp
 
 
-def make_cover(target: str, **kwargs: Any) -> CoverComponent:
+def make_cover(target: str, name: str | None = None, **kwargs: Any) -> CoverComponent:
     """Return a CoverComponent with the given target and kwargs."""
-    cmp = CoverComponent(address=ADDR, identifier=target, target=target, **kwargs)
-    cmp.set_base_topic(BASE_TOPIC)
+    name = name or target.replace("_", " ").capitalize()
+    cmp = CoverComponent(
+        address=ADDR, identifier=target, name=name, target=target, **kwargs
+    )
+    cmp.update_base_topic(BASE_TOPIC)
     return cmp
 
 
@@ -152,7 +173,7 @@ class TestSwitchComponent:
             target="relay1",
             state_topic="custom/state",
         )
-        sw.set_base_topic(BASE_TOPIC)
+        sw.update_base_topic(BASE_TOPIC)
         assert sw.state_topic == "custom/state"
 
     def test_invalid_target_raises(self) -> None:
@@ -363,7 +384,7 @@ class TestClimateComponent:
         }
         defaults.update(kwargs)
         cmp = ClimateComponent(**defaults)
-        cmp.set_base_topic(BASE_TOPIC)
+        cmp.update_base_topic(BASE_TOPIC)
         return cmp
 
     def test_temperature_state_topic(self) -> None:

@@ -50,17 +50,9 @@ class DeviceConfig(Module):
 
     model_config = ConfigDict(extra="forbid")
 
-    homeassistant: HomeAssistantModuleDiscoveryConfig | None = Field(default=None)
-
-    @model_validator(mode="before")
-    @classmethod
-    def configure_homeassistant(cls, data: Any) -> Any:
-        """Configure the Home Assistant settings for a device."""
-        if "homeassistant" not in data or not isinstance(data["homeassistant"], dict):
-            data["homeassistant"] = {}
-
-        data["homeassistant"].setdefault("address", data["address"])
-        return data
+    homeassistant: HomeAssistantModuleDiscoveryConfig = Field(
+        default_factory=HomeAssistantModuleDiscoveryConfig
+    )
 
 
 class LcnConfig(BaseModel):
@@ -205,10 +197,15 @@ class AppConfig(BaseSettings):
 
 def finalize_config(config: AppConfig) -> None:
     """Finalize the configuration by injecting additional parameters."""
-    for _lcn_addr, device in config.devices.items():
+    for device in config.devices.values():
         if device.homeassistant is not None:
+            device.homeassistant.address = device.address
+            # update discovery components
+            device.homeassistant.prepare_auto_components()
+            device.homeassistant.update_components()
+
             # inject mqtt base_topic into discovery components
-            device.homeassistant.set_base_topic(config.mqtt.base_topic)
+            device.homeassistant.update_base_topic(config.mqtt.base_topic)
 
 
 def load_config(
