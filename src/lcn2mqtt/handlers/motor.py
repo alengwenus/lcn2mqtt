@@ -111,6 +111,14 @@ async def handle_motor_relays_set(
             idx - 1, modifier, positioning_mode
         )
     elif action == "set_position":
+        if positioning_mode not in (
+            lcn_defs.MotorPositioningMode.MODULE,
+            lcn_defs.MotorPositioningMode.BS4,
+        ):
+            _LOG.warning(
+                "Motor %d is not in a positioning mode, cannot set position", idx
+            )
+            return
         try:
             position = int(payload)
         except ValueError as exc:
@@ -144,7 +152,7 @@ def handle_motor_outputs_status(
         yield MqttMessage("motor/outputs/state", state.value)
 
 
-@mqtt_handler("motor/outputs/set")
+@mqtt_handler("motor/outputs/set", "motor/outputs/set_position")
 async def handle_motor_outputs_set(
     subtopic: str,
     payload: str,
@@ -174,6 +182,20 @@ async def handle_motor_outputs_set(
             return
         await device_connection.control_motor_outputs(
             modifier, module.motor_outputs.reverse_time
+        )
+    elif action == "set_position":
+        positioning_mode = module.motor_outputs.positioning_mode
+        if positioning_mode != lcn_defs.MotorPositioningMode.MODULE:
+            _LOG.warning(
+                "Outputs motor is not in a positioning mode, cannot set position"
+            )
+            return
+        try:
+            position = int(payload)
+        except ValueError as exc:
+            raise ValueError(f"Invalid position payload: {payload}") from exc
+        await device_connection.control_motor_outputs_position(
+            position, positioning_mode
         )
 
 

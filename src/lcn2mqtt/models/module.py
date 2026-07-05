@@ -1,7 +1,7 @@
 """Data models for LCN modules."""
 
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pypck import lcn_defs
@@ -165,16 +165,18 @@ class Motor(BaseModel):
         return False
 
 
-class MotorOutput(BaseModel):
+class MotorOutput(Motor):
     """Motor output model for module motor outputs."""
 
     model_config = ConfigDict(validate_assignment=True)
 
-    state: MotorState | None = None
     reverse_time: lcn_defs.MotorReverseTime = lcn_defs.MotorReverseTime.RT70
-    positioning_mode: lcn_defs.MotorPositioningMode | None = (
-        lcn_defs.MotorPositioningMode.NONE
-    )
+    positioning_mode: (
+        Literal[
+            lcn_defs.MotorPositioningMode.NONE, lcn_defs.MotorPositioningMode.MODULE
+        ]
+        | None
+    ) = lcn_defs.MotorPositioningMode.NONE
 
     @field_validator("reverse_time", mode="before")
     @classmethod
@@ -185,13 +187,6 @@ class MotorOutput(BaseModel):
         except ValueError as exc:
             raise ValueError(f"Invalid motor reverse time: {v}") from exc
         return reverse_time
-
-    def update_state(self, state: MotorState) -> bool:
-        """Update the output state and return True if it changed."""
-        if self.state != state:
-            self.state = state
-            return True
-        return False
 
 
 class Module(BaseModel):
