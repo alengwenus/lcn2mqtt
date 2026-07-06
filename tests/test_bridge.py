@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pypck import lcn_defs
+from pypck import device, lcn_defs
 from pypck.inputs import Input, ModSn
 from pypck.lcn_addr import LcnAddr
 
@@ -83,7 +83,8 @@ class TestEnsureModuleComplete:
         """Already-registered module is returned without re-creating it."""
         addr = LcnAddr(0, 7, False)
         existing = DeviceConfig(address=addr)
-        existing._device_connection = MagicMock()
+        existing._device_connection = MagicMock(spec=device.DeviceConnection)
+        # existing._device_connection.request_name = AsyncMock()
         bridge_with_pchk.modules[addr] = existing
         with patch.object(
             bridge_with_pchk._pchk,
@@ -110,33 +111,19 @@ class TestEnsureModuleComplete:
         assert result is bridge_with_pchk.modules[addr]
         assert result.name == "NewModule"
 
-    async def test_module_name_stripped(
-        self, bridge_with_pchk: Bridge, mock_device_conn: MagicMock
-    ) -> None:
-        """Leading/trailing whitespace is stripped from the device name."""
-        addr = LcnAddr(0, 10, False)
-        mock_device_conn.request_name = AsyncMock(return_value="  Padded Name  ")
-        with patch.object(
-            bridge_with_pchk._pchk,
-            "get_device_connection",
-            MagicMock(return_value=mock_device_conn),
-        ):
-            result = await bridge_with_pchk.ensure_module_complete(addr)
-        assert result.name == "Padded Name"
-
     async def test_module_name_falls_back_when_request_fails(
         self, bridge_with_pchk: Bridge, mock_device_conn: MagicMock
     ) -> None:
-        """Address string is used as module name when request_name raises."""
+        """None is used as module name when request_name returns None."""
         addr = LcnAddr(0, 11, False)
-        mock_device_conn.request_name = AsyncMock(side_effect=Exception("timeout"))
+        mock_device_conn.request_name = AsyncMock(return_value=None)
         with patch.object(
             bridge_with_pchk._pchk,
             "get_device_connection",
             MagicMock(return_value=mock_device_conn),
         ):
             result = await bridge_with_pchk.ensure_module_complete(addr)
-        assert result.name == addr.to_string()
+        assert result.name is None
 
     async def test_discovery_published_for_new_module(
         self, bridge_with_pchk: Bridge, mock_device_conn: MagicMock

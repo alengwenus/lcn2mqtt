@@ -16,6 +16,7 @@ from pypck.lcn_addr import LcnAddr
 
 from .discovery import DiscoveryManager
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
+from .helpers import singleflight
 from .models.config import AppConfig, DeviceConfig
 from .models.module import Module
 
@@ -184,6 +185,7 @@ class Bridge:
             )
         return device_connection
 
+    @singleflight
     async def ensure_module_complete(self, lcn_addr: LcnAddr) -> DeviceConfig:
         """Ensure a Module exists for the given LCN address and return it."""
         publish: bool = False
