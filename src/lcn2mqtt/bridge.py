@@ -204,15 +204,9 @@ class Bridge:
             module.device_connection = device_connection
             publish = True
 
-        if module.name == "":
-            try:
-                module.name = lcn_addr.to_string()  # default name if request_name fails
-                name = await device_connection.request_name()
-                if name:
-                    module.name = name.strip()
-                publish = True
-            except Exception:  # noqa: BLE001
-                _LOG.debug("Discovery: could not fetch name for %s", lcn_addr)
+        if module.name is None:
+            module.name = await device_connection.request_name()
+            publish = True
 
         if self._discovery is not None and publish:
             await self._discovery.publish_module(lcn_addr, module)

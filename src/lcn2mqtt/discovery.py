@@ -117,7 +117,9 @@ class DiscoveryManager:
     async def publish_module(self, lcn_addr: LcnAddr, module: DeviceConfig) -> None:
         """Publish a device-discovery entry for one LCN module."""
         addr_str = lcn_addr.to_string()
-        display_name = module.name.strip() if module.name else f"LCN {addr_str.upper()}"
+        display_name = (
+            f"LCN {addr_str.upper()}" if module.name is None else module.name.strip()
+        )
 
         cmps: dict[str, Any] = {}
 
