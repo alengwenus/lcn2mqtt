@@ -6,6 +6,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pypck import lcn_defs
+from pypck.device import Serials
 from pypck.lcn_addr import LcnAddr
 
 from lcn2mqtt.bridge import Bridge
@@ -46,7 +48,12 @@ def mock_device_conn() -> MagicMock:
     """Return a mock device connection that reports a valid serial and a name."""
     conn = MagicMock()
     conn.serials_known = AsyncMock()
-    conn.serials.hardware_serial = 1
+    conn.serials = Serials(
+        hardware_serial=0x1A20A1234,
+        manu=0x1,
+        software_serial=0x190B11,
+        hardware_type=lcn_defs.HardwareType.SH_PLUS,
+    )
     conn.request_name = AsyncMock(return_value="TestModule")
     return conn
 

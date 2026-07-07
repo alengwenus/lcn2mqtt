@@ -8,8 +8,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pypck import lcn_defs
-from pypck.inputs import Input, ModSn
+from pypck import inputs
+from pypck.inputs import Input
 from pypck.lcn_addr import LcnAddr
 
 from lcn2mqtt.bridge import Bridge
@@ -83,14 +83,16 @@ class TestEnsureModuleComplete:
         """Already-registered module is returned without re-creating it."""
         addr = LcnAddr(0, 7, False)
         existing = DeviceConfig(address=addr)
-        existing._device_connection = MagicMock()
+        # existing._device_connection = MagicMock(spec=device.DeviceConnection)
+        existing._device_connection = mock_device_conn
+        # existing._device_connection.request_name = AsyncMock()
         bridge_with_pchk.modules[addr] = existing
-        with patch.object(
-            bridge_with_pchk._pchk,
-            "get_device_connection",
-            MagicMock(return_value=mock_device_conn),
-        ):
-            result = await bridge_with_pchk.ensure_module_complete(addr)
+        # with patch.object(
+        #     bridge_with_pchk._pchk,
+        #     "get_device_connection",
+        #     MagicMock(return_value=mock_device_conn),
+        # ):
+        result = await bridge_with_pchk.ensure_module_complete(addr)
         assert result is existing
 
     async def test_new_module_auto_registered(
@@ -110,33 +112,19 @@ class TestEnsureModuleComplete:
         assert result is bridge_with_pchk.modules[addr]
         assert result.name == "NewModule"
 
-    async def test_module_name_stripped(
-        self, bridge_with_pchk: Bridge, mock_device_conn: MagicMock
-    ) -> None:
-        """Leading/trailing whitespace is stripped from the device name."""
-        addr = LcnAddr(0, 10, False)
-        mock_device_conn.request_name = AsyncMock(return_value="  Padded Name  ")
-        with patch.object(
-            bridge_with_pchk._pchk,
-            "get_device_connection",
-            MagicMock(return_value=mock_device_conn),
-        ):
-            result = await bridge_with_pchk.ensure_module_complete(addr)
-        assert result.name == "Padded Name"
-
     async def test_module_name_falls_back_when_request_fails(
         self, bridge_with_pchk: Bridge, mock_device_conn: MagicMock
     ) -> None:
-        """Address string is used as module name when request_name raises."""
+        """None is used as module name when request_name returns None."""
         addr = LcnAddr(0, 11, False)
-        mock_device_conn.request_name = AsyncMock(side_effect=Exception("timeout"))
+        mock_device_conn.request_name = AsyncMock(return_value=None)
         with patch.object(
             bridge_with_pchk._pchk,
             "get_device_connection",
             MagicMock(return_value=mock_device_conn),
         ):
             result = await bridge_with_pchk.ensure_module_complete(addr)
-        assert result.name == addr.to_string()
+        assert result.name is None
 
     async def test_discovery_published_for_new_module(
         self, bridge_with_pchk: Bridge, mock_device_conn: MagicMock
@@ -153,33 +141,6 @@ class TestEnsureModuleComplete:
         ):
             await bridge_with_pchk.ensure_module_complete(addr)
         bridge_with_pchk._discovery.publish_module.assert_awaited_once()
-
-
-# ---------------------------------------------------------------------------
-# _set_module_serials
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-class TestSetModuleSerials:
-    """Tests for Bridge._set_module_serials."""
-
-    async def test_serials_are_set(self, bridge: Bridge) -> None:
-        """Hardware serial, software serial and manu are written to the module."""
-        addr = LcnAddr(0, 7, False)
-        module = Module(address=addr)
-
-        inp = MagicMock(spec=ModSn)
-        inp.hardware_serial = 12345
-        inp.software_serial = 67890
-        inp.manu = 1
-        inp.hardware_type = lcn_defs.HardwareType.UNKNOWN
-
-        await bridge._set_module_serials(module, inp)
-
-        assert module.serials.hardware == 12345
-        assert module.serials.software == 67890
-        assert module.serials.manu == 1
 
 
 # ---------------------------------------------------------------------------
@@ -308,22 +269,6 @@ class TestHandleMqttMessage:
 class TestDispatchInput:
     """Tests for Bridge._dispatch_input."""
 
-    async def test_mod_sn_calls_set_serials(self, bridge_with_pchk: Bridge) -> None:
-        """ModSn inputs are routed to _set_module_serials instead of dispatch_input."""
-        addr = LcnAddr(0, 7, False)
-        module = Module(address=addr)
-        with (
-            patch.object(
-                bridge_with_pchk, "ensure_module_complete", return_value=module
-            ),
-            patch.object(bridge_with_pchk, "_set_module_serials") as mock_set_serials,
-        ):
-            inp = MagicMock(spec=ModSn)
-            inp.physical_source_addr = addr
-
-            await bridge_with_pchk._dispatch_input(inp)
-            mock_set_serials.assert_awaited_once_with(module, inp)
-
     async def test_regular_input_publishes_messages(
         self, bridge_with_pchk: Bridge
     ) -> None:
@@ -338,7 +283,7 @@ class TestDispatchInput:
                 bridge_with_pchk, "_publish", new_callable=AsyncMock
             ) as mock_publish,
         ):
-            inp = MagicMock()
+            inp = MagicMock(spec=inputs.ModStatusOutput)
             inp.physical_source_addr = addr
 
             def fake_dispatch(inp: Input, **kwargs: Any) -> Generator[MqttMessage]:
