@@ -16,8 +16,9 @@ from pypck.lcn_addr import LcnAddr
 
 from .discovery import DiscoveryManager
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
+from .helpers import singleflight
 from .models.config import AppConfig, DeviceConfig
-from .models.module import Module
+from .models.module import ModuleSerials
 
 _LOG = logging.getLogger(__name__)
 
@@ -94,14 +95,14 @@ class Bridge:
                 self._discovery = DiscoveryManager(self.config, mqtt)
                 await self._discovery.publish_bridge()
 
-            pchk.register_for_inputs(self._on_lcn_input)
+            # Ensure all modules from config are created and complete before starting.
+            for lcn_addr in self.modules:
+                await self.ensure_module_complete(lcn_addr)
 
             if self.config.homeassistant.scan_modules:
                 await self._discover_modules()
 
-            # Ensure all modules from config are created and complete before starting.
-            for lcn_addr in self.modules:
-                await self.ensure_module_complete(lcn_addr)
+            pchk.register_for_inputs(self._on_lcn_input)
 
             await self._subscribe_command_topics(mqtt)
 
@@ -174,16 +175,10 @@ class Bridge:
     async def _get_device_connection(self, lcn_addr: LcnAddr) -> DeviceConnection:
         """Get the module connection for the given LCN address."""
         device_connection = self._pchk.get_device_connection(lcn_addr)
-
         await device_connection.serials_known()
-        if device_connection.serials.hardware_serial == -1:
-            _LOG.warning(
-                "Timeout waiting for serials of module %s.%s; several commands may not work",
-                lcn_addr.seg_id,
-                lcn_addr.addr_id,
-            )
         return device_connection
 
+    @singleflight
     async def ensure_module_complete(self, lcn_addr: LcnAddr) -> DeviceConfig:
         """Ensure a Module exists for the given LCN address and return it."""
         publish: bool = False
@@ -197,22 +192,26 @@ class Bridge:
 
         module = self.modules[lcn_addr]
 
+        # ensure we have a device_connection and serials for the module
         try:
             device_connection = module.device_connection
         except ValueError:
+            # polls for module.serials automatically
             device_connection = await self._get_device_connection(lcn_addr)
             module.device_connection = device_connection
+
+        if module.serials.hardware == -1:
+            module.serials = ModuleSerials(
+                hardware=device_connection.serials.hardware_serial,
+                software=device_connection.serials.software_serial,
+                manu=device_connection.serials.manu,
+                type=device_connection.serials.hardware_type,
+            )
             publish = True
 
-        if module.name == "":
-            try:
-                module.name = lcn_addr.to_string()  # default name if request_name fails
-                name = await device_connection.request_name()
-                if name:
-                    module.name = name.strip()
-                publish = True
-            except Exception:  # noqa: BLE001
-                _LOG.debug("Discovery: could not fetch name for %s", lcn_addr)
+        if module.name is None:
+            module.name = await device_connection.request_name()
+            publish = True
 
         if self._discovery is not None and publish:
             await self._discovery.publish_module(lcn_addr, module)
@@ -254,22 +253,13 @@ class Bridge:
             )  # ensure module exists and is complete before handling input
             prefix = self._addr_prefix(lcn_addr)
 
-            if isinstance(inp, inputs.ModSn):
-                await self._set_module_serials(module, inp)
-            else:
+            if isinstance(inp, inputs.ModInput):
                 for message in dispatch_input(inp, module=module):
                     await self._publish(f"{prefix}/{message.topic}", message.payload)
             # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
             _LOG.exception("Error dispatching LCN input %s", type(inp).__name__)
-
-    async def _set_module_serials(self, module: Module, inp: inputs.ModSn) -> None:
-        """Set the serial numbers and type for a module based on a ModSn input."""
-        module.serials.hardware = inp.hardware_serial
-        module.serials.software = inp.software_serial
-        module.serials.manu = inp.manu
-        module.serials.type = inp.hardware_type
 
     # ---------- MQTT -> LCN ----------
 

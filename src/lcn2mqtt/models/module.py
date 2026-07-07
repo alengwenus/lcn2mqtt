@@ -197,7 +197,7 @@ class Module(BaseModel):
     _device_connection: DeviceConnection | None = None
     address: LcnAddr
     serials: ModuleSerials = Field(default_factory=ModuleSerials)
-    name: str = ""
+    name: str | None = None
 
     output1: Output = Field(default_factory=Output)
     output2: Output = Field(default_factory=Output)
