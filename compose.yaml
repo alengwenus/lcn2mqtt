@@ -5,7 +5,8 @@ services:
     container_name: lcn2mqtt
     restart: unless-stopped
     env_file:
-      - .env
+      - path: ./.env
+        required: false
     # Optional: depend on a local broker
     # depends_on:
     #   - mosquitto
