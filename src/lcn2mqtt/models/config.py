@@ -174,6 +174,8 @@ class AppConfig(BaseSettings):
             address=lcn_addr, homeassistant=homeassistant_config
         )
 
+        finalize_device_components(homeassistant_config, device_config, self)
+
         return device_config
 
     @classmethod
@@ -195,26 +197,35 @@ class AppConfig(BaseSettings):
         )
 
 
+def finalize_device_components(
+    homeassistant: HomeAssistantModuleDiscoveryConfig,
+    device: DeviceConfig,
+    config: AppConfig,
+) -> None:
+    """Finalize the components of a Home Assistant module discovery config."""
+    homeassistant.address = device.address
+    # update discovery components
+    homeassistant.prepare_auto_components()
+    homeassistant.update_components()
+
+    # inject positioning_mode from device to cover components
+    for cover in homeassistant.covers.values():
+        motor = cover.target.name.lower()
+        motor = "motor_outputs" if motor == "outputs" else motor
+
+        motor_obj = getattr(device, motor, None)
+        if motor_obj is not None:
+            cover.positioning_mode = motor_obj.positioning_mode
+
+    # inject mqtt base_topic into discovery components
+    homeassistant.update_base_topic(config.mqtt.base_topic)
+
+
 def finalize_config(config: AppConfig) -> None:
     """Finalize the configuration by injecting additional parameters."""
     for device in config.devices.values():
         if device.homeassistant is not None:
-            device.homeassistant.address = device.address
-            # update discovery components
-            device.homeassistant.prepare_auto_components()
-            device.homeassistant.update_components()
-
-            # inject positioning_mode from device to cover components
-            for cover in device.homeassistant.covers.values():
-                motor = cover.target.name.lower()
-                motor = "motor_outputs" if motor == "outputs" else motor
-
-                motor_obj = getattr(device, motor, None)
-                if motor_obj is not None:
-                    cover.positioning_mode = motor_obj.positioning_mode
-
-            # inject mqtt base_topic into discovery components
-            device.homeassistant.update_base_topic(config.mqtt.base_topic)
+            finalize_device_components(device.homeassistant, device, config)
 
 
 def load_config(
