@@ -1,9 +1,10 @@
 """Peripheral component handlers for the LCN <-> MQTT bridge."""
 
-from . import binsensor, led, motor, output, relay, variable
+from . import binsensor, extra, led, motor, output, relay, variable
 
 __all__ = [
     "binsensor",
+    "extra",
     "led",
     "motor",
     "output",
