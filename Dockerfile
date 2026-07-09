@@ -7,7 +7,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PYTHONDONTWRITEBYTECODE=1
 
-WORKDIR /app
+WORKDIR /build
 
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
@@ -18,14 +18,14 @@ FROM python:3.13-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/build/.venv/bin:$PATH"
 
 # Non-root user
-RUN useradd --system --create-home --uid 1000 app
+RUN useradd --system --create-home --uid 1000 lcn2mqtt
 
-COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /build/.venv /build/.venv
 
-USER app
-WORKDIR /home/app
+USER lcn2mqtt
+WORKDIR /lcn2mqtt
 
 ENTRYPOINT ["lcn2mqtt"]

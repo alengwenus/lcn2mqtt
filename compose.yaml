@@ -4,8 +4,13 @@ services:
     image: lcn2mqtt:latest
     container_name: lcn2mqtt
     restart: unless-stopped
+    environment:
+      LCN2MQTT__RUNNING_IN_DOCKER: true
     env_file:
       - path: ./stack.env
         required: false
       - path: ./.env
         required: false
+
+    volumes:
+      - ${LCN2MQTT__CONFIG_PATH:-./data}:/lcn2mqtt/data

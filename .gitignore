@@ -19,7 +19,7 @@ wheels/
 !.vscode/settings.default.jsonc
 
 # other files
-data/
 .env
 configuration.yaml
-data/
+data/*
+!data/configuration.yaml.example
