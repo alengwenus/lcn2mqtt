@@ -17,7 +17,7 @@ from lcn2mqtt.handlers.motor import (
     handle_retained_state,
 )
 from lcn2mqtt.models.config import AppConfig
-from lcn2mqtt.models.module import Module, MotorState
+from lcn2mqtt.models.device import Device, MotorState
 
 # ---------- Motors via relays ----------
 
@@ -34,7 +34,7 @@ def _relay_states(motor0_on: bool, motor0_down: bool) -> list[bool]:
 class TestHandleMotorRelaysStatus:
     """Tests for the ModStatusRelays motor input handler."""
 
-    async def test_all_relays_reported_on_first_call(self, module: Module) -> None:
+    async def test_all_relays_reported_on_first_call(self, module: Device) -> None:
         """All 4 motors produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
         messages = list(handle_motor_relays_status(inp, module=module))
@@ -51,7 +51,7 @@ class TestHandleMotorRelaysStatus:
     )
     async def test_motor_state_detected(
         self,
-        module: Module,
+        module: Device,
         motor0_on: bool,
         motor0_down: bool,
         expected_state: MotorState,
@@ -68,7 +68,7 @@ class TestHandleMotorRelaysStatus:
         assert msg is not None
         assert msg.payload == expected_state.value
 
-    async def test_no_change_produces_no_messages(self, module: Module) -> None:
+    async def test_no_change_produces_no_messages(self, module: Device) -> None:
         """No messages are emitted when motor states are unchanged."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
         list(handle_motor_relays_status(inp, module=module))
@@ -91,7 +91,7 @@ class TestHandleMotorRelaysSet:
     )
     async def test_set_calls_control_motor_relays_command(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         payload: str,
         expected_modifier: lcn_defs.MotorStateModifier,
@@ -104,7 +104,7 @@ class TestHandleMotorRelaysSet:
         )
 
     async def test_unknown_payload_does_not_call_device(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """An unrecognised payload is silently ignored."""
         await handle_motor_relays_set("motor/1/set", "wiggle", module_with_conn, config)
@@ -112,7 +112,7 @@ class TestHandleMotorRelaysSet:
         conn.control_motor_relays.assert_not_awaited()
 
     async def test_out_of_range_index_is_ignored(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """A motor index outside 1-4 is silently ignored."""
         await handle_motor_relays_set("motor/5/set", "open", module_with_conn, config)
@@ -126,7 +126,7 @@ class TestHandleMotorRelaysSet:
 class TestHandleMotorOutputsStatus:
     """Tests for the ModStatusOutput motor input handler."""
 
-    async def test_outputs_reported_on_first_call(self, module: Module) -> None:
+    async def test_outputs_reported_on_first_call(self, module: Device) -> None:
         """All 4 motors produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusOutput(module.address, 0, 0)
         messages = list(handle_motor_outputs_status(inp, module=module))
@@ -143,7 +143,7 @@ class TestHandleMotorOutputsStatus:
     )
     async def test_motor_state_detected(
         self,
-        module: Module,
+        module: Device,
         output_id: int,
         percent: float,
         prior_state: MotorState,
@@ -160,7 +160,7 @@ class TestHandleMotorOutputsStatus:
         assert msg is not None
         assert msg.payload == expected_state.value
 
-    async def test_no_change_produces_no_messages(self, module: Module) -> None:
+    async def test_no_change_produces_no_messages(self, module: Device) -> None:
         """No messages are emitted when motor states are unchanged."""
         inp = inputs.ModStatusOutput(module.address, 0, 0)
         list(handle_motor_outputs_status(inp, module=module))
@@ -183,7 +183,7 @@ class TestHandleMotorOutputsSet:
     )
     async def test_set_calls_control_motor_outputs_command(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         payload: str,
         expected_modifier: lcn_defs.MotorStateModifier,
@@ -199,7 +199,7 @@ class TestHandleMotorOutputsSet:
         )
 
     async def test_unknown_payload_does_not_call_device(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """An unrecognised payload is silently ignored."""
         await handle_motor_outputs_set(
@@ -230,7 +230,7 @@ class TestHandleRetainedState:
     )
     async def test_retained_state_updates_module(
         self,
-        module: Module,
+        module: Device,
         config: AppConfig,
         payload: str,
         expected_state: MotorState,
@@ -244,7 +244,7 @@ class TestHandleRetainedState:
         assert motor_obj.state == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Module, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):

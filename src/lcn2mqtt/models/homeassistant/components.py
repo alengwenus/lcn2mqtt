@@ -33,9 +33,8 @@ class BaseComponentModel(BaseModel):
     def prefix(self) -> str:
         """MQTT topic prefix for this component."""
         assert self.address is not None, "Address must be set before accessing prefix"
-        return (
-            f"{self.base_topic}/module/{self.address.seg_id:d}/{self.address.addr_id:d}"
-        )
+        target_type = "group" if self.address.is_group else "module"
+        return f"{self.base_topic}/{target_type}/{self.address.seg_id:d}/{self.address.addr_id:d}"
 
     def update_properties(self, address: LcnAddr, identifier: str) -> None:
         """Update properties based on the current address and identifier."""

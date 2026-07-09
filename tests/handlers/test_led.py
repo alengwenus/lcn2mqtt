@@ -11,14 +11,14 @@ from pypck import inputs, lcn_defs
 
 from lcn2mqtt.handlers.led import handle_command, handle_input, handle_retained_state
 from lcn2mqtt.models.config import AppConfig
-from lcn2mqtt.models.module import LedState, Module
+from lcn2mqtt.models.device import Device, LedState
 
 _ALL_OFF = [lcn_defs.LedStatus.OFF] * 12
 _ALL_LOGIC_OPS = [lcn_defs.LogicOpStatus.NONE] * 4
 
 
 def _make_led_inp(
-    states: list[lcn_defs.LedStatus], module: Module
+    states: list[lcn_defs.LedStatus], module: Device
 ) -> inputs.ModStatusLedsAndLogicOps:
     """Build a ModStatusLedsAndLogicOps input with the given LED states."""
     return inputs.ModStatusLedsAndLogicOps(module.address, states, _ALL_LOGIC_OPS)
@@ -27,13 +27,13 @@ def _make_led_inp(
 class TestHandleLedInput:
     """Tests for the ModStatusLedsAndLogicOps input handler."""
 
-    async def test_all_leds_reported_on_first_call(self, module: Module) -> None:
+    async def test_all_leds_reported_on_first_call(self, module: Device) -> None:
         """All 12 LEDs produce a message on the very first call (all were unknown)."""
         inp = _make_led_inp(_ALL_OFF, module)
         messages = list(handle_input(inp, module=module))
         assert len(messages) == 12
 
-    async def test_all_leds_covered_on_first_call(self, module: Module) -> None:
+    async def test_all_leds_covered_on_first_call(self, module: Device) -> None:
         """LEDs changing from unknown to states produce messages with correct payloads."""
         states = (
             [lcn_defs.LedStatus.ON] * 3
@@ -48,7 +48,7 @@ class TestHandleLedInput:
             for idx, (state, message) in enumerate(zip(states, messages))
         )
 
-    async def test_changed_leds_produce_messages(self, module: Module) -> None:
+    async def test_changed_leds_produce_messages(self, module: Device) -> None:
         """Only LEDs whose state changed produce a message."""
         list(handle_input(_make_led_inp(_ALL_OFF, module), module=module))
         states = [lcn_defs.LedStatus.ON] + [lcn_defs.LedStatus.OFF] * 11
@@ -57,7 +57,7 @@ class TestHandleLedInput:
         assert messages[0].topic == "led/1/state"
         assert messages[0].payload == "on"
 
-    async def test_no_change_produces_no_messages(self, module: Module) -> None:
+    async def test_no_change_produces_no_messages(self, module: Device) -> None:
         """Identical consecutive inputs yield no messages."""
         inp = _make_led_inp(_ALL_OFF, module)
         list(handle_input(inp, module=module))
@@ -79,7 +79,7 @@ class TestHandleLedCommand:
     )
     async def test_set_command_calls_control_led(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         payload: str,
         expected_status: lcn_defs.LedStatus,
@@ -92,7 +92,7 @@ class TestHandleLedCommand:
         assert status == expected_status
 
     async def test_set_command_also_requests_status(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """After sending the command, LED status is requested from the device."""
         await handle_command("led/1/set", "on", module_with_conn, config)
@@ -101,7 +101,7 @@ class TestHandleLedCommand:
 
     async def test_invalid_payload_logs_warning(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -127,7 +127,7 @@ class TestHandleRetainedState:
     )
     async def test_retained_state_updates_module(
         self,
-        module: Module,
+        module: Device,
         config: AppConfig,
         payload: str,
         expected_state: LedState,
@@ -138,7 +138,7 @@ class TestHandleRetainedState:
         assert module.led1 == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Module, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):

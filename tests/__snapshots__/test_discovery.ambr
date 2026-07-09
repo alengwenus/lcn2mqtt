@@ -49,7 +49,7 @@
       ]),
       'manufacturer': 'Issendorff',
       'model': 'UnknownModuleType',
-      'name': 'LCN M000007',
+      'name': 'LCN Module (M000007)',
       'serial_number': '0x-1',
       'sw_version': '0x-1',
       'via_device': 'lcntest_bridge',

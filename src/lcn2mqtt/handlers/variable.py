@@ -13,7 +13,7 @@ from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 
-from ..models.module import Module
+from ..models.device import Device
 
 _LOG = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ Publish = Callable[[str, Any], Awaitable[None]]
 
 @input_handler(inputs.ModStatusVar)
 def handle_variable_input(
-    inp: inputs.ModStatusVar, module: Module
+    inp: inputs.ModStatusVar, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a variable status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.variables():
@@ -45,7 +45,7 @@ def handle_variable_input(
 async def handle_variable_change(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change a variable value."""
@@ -86,7 +86,7 @@ async def handle_variable_change(
 
 @mqtt_handler("variable/+/state")
 async def handle_retained_variable_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a variable."""
     if not config.retained_broker_states:
@@ -116,7 +116,7 @@ async def handle_retained_variable_state(
 
 @input_handler(inputs.ModStatusVar)
 def handle_setpoint_input(
-    inp: inputs.ModStatusVar, module: Module
+    inp: inputs.ModStatusVar, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a setpoint status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.set_points():
@@ -143,7 +143,7 @@ def handle_setpoint_input(
 async def handle_setpoint_change(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change a setpoint value."""
@@ -193,7 +193,7 @@ async def handle_setpoint_change(
 
 @mqtt_handler("setpoint/+/state", "setpoint/+/locked")
 async def handle_retained_setpoint_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a setpoint."""
     if not config.retained_broker_states:
@@ -230,7 +230,7 @@ async def handle_retained_setpoint_state(
 
 @input_handler(inputs.ModStatusVar)
 def handle_threshold_input(
-    inp: inputs.ModStatusVar, module: Module
+    inp: inputs.ModStatusVar, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a threshold status input, update the module state, and publish any changes."""
     if inp.var not in list(chain.from_iterable(lcn_defs.Var.thresholds())):
@@ -268,7 +268,7 @@ def handle_threshold_input(
 async def handle_threshold_change(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change a threshold value."""
@@ -327,7 +327,7 @@ async def handle_threshold_change(
 
 @mqtt_handler("threshold/+/+/state", "threshold/+/+/locked")
 async def handle_retained_threshold_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a threshold."""
     if not config.retained_broker_states:
