@@ -15,19 +15,19 @@ from lcn2mqtt.handlers.relay import (
     handle_set,
 )
 from lcn2mqtt.models.config import AppConfig
-from lcn2mqtt.models.module import Module, RelayState
+from lcn2mqtt.models.device import Device, RelayState
 
 
 class TestHandleRelayStatus:
     """Tests for the ModStatusRelays input handler."""
 
-    async def test_all_relays_reported_on_first_call(self, module: Module) -> None:
+    async def test_all_relays_reported_on_first_call(self, module: Device) -> None:
         """All 8 relays produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
         messages = list(handle_relay_status(inp, module=module))
         assert len(messages) == 8
 
-    async def test_changed_relays_produce_messages(self, module: Module) -> None:
+    async def test_changed_relays_produce_messages(self, module: Device) -> None:
         """Only relays whose state actually changed emit a message."""
         states = [True, False, True] + [False] * 5
         inp = inputs.ModStatusRelays(module.address, states)
@@ -44,7 +44,7 @@ class TestHandleRelayStatus:
         ],
     )
     async def test_on_state_produces_on_payload(
-        self, module: Module, state: bool, expected_payload: str
+        self, module: Device, state: bool, expected_payload: str
     ) -> None:
         """A relay set to True publishes 'on'."""
         inp = inputs.ModStatusRelays(module.address, [state] + [False] * 7)
@@ -55,7 +55,7 @@ class TestHandleRelayStatus:
         assert msg is not None
         assert msg.payload == expected_payload
 
-    async def test_no_change_produces_no_messages(self, module: Module) -> None:
+    async def test_no_change_produces_no_messages(self, module: Device) -> None:
         """No messages are emitted when all relay states are unchanged."""
         inp = inputs.ModStatusRelays(module.address, [True, False] + [False] * 6)
         list(handle_relay_status(inp, module=module))
@@ -76,7 +76,7 @@ class TestHandleRelaySet:
     )
     async def test_set_command_calls_control_relays(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         payload: str,
         expected_modifier: lcn_defs.RelayStateModifier,
@@ -91,7 +91,7 @@ class TestHandleRelaySet:
 
     async def test_invalid_payload_logs_warning(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -103,7 +103,7 @@ class TestHandleRelaySet:
         assert any("relay" in record.message.lower() for record in caplog.records)
 
     async def test_out_of_range_index_is_ignored(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """A relay index outside 1-8 is silently ignored."""
         await handle_set("relay/9/set", "on", module_with_conn, config)
@@ -123,7 +123,7 @@ class TestHandleRetainedState:
     )
     async def test_retained_state_updates_module(
         self,
-        module: Module,
+        module: Device,
         config: AppConfig,
         payload: str,
         expected_state: RelayState,
@@ -134,7 +134,7 @@ class TestHandleRetainedState:
         assert module.relay1 == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Module, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):

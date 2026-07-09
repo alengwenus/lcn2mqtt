@@ -13,7 +13,7 @@ from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 
-from ..models.module import Module, Output, OutputState
+from ..models.device import Device, Output, OutputState
 
 _LOG = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ _DEFAULT_TRANSITION_MS = 500
 
 
 @input_handler(inputs.ModStatusOutput)
-def handle_input(inp: inputs.ModStatusOutput, module: Module) -> Generator[MqttMessage]:
+def handle_input(inp: inputs.ModStatusOutput, module: Device) -> Generator[MqttMessage]:
     """Handle an output status input, update the module state, and publish any changes."""
     idx = inp.output_id + 1  # 0-based -> 1-based
     output = getattr(module, f"output{idx}")
@@ -46,7 +46,7 @@ def handle_input(inp: inputs.ModStatusOutput, module: Module) -> Generator[MqttM
 async def handle_set_brightness(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change an output state or brightness."""
@@ -75,7 +75,7 @@ async def handle_set_brightness(
 async def handle_set_transition(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change an output state or brightness."""
@@ -104,7 +104,7 @@ async def handle_set_transition(
 async def handle_set(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change an output state or brightness."""
@@ -149,7 +149,7 @@ async def handle_set(
 
 @mqtt_handler("output/+/state", "output/+/brightness")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a relay."""
     if not config.retained_broker_states:

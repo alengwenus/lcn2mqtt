@@ -11,14 +11,14 @@ from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 
-from ..models.module import LedState, Module
+from ..models.device import Device, LedState
 
 _LOG = logging.getLogger(__name__)
 
 
 @input_handler(inputs.ModStatusLedsAndLogicOps)
 def handle_input(
-    inp: inputs.ModStatusLedsAndLogicOps, module: Module
+    inp: inputs.ModStatusLedsAndLogicOps, module: Device
 ) -> Generator[MqttMessage]:
     """Handle an LED status input, update the module state, and publish any changes."""
     states = [LedState(state.name.lower()) for state in inp.states_led]
@@ -30,7 +30,7 @@ def handle_input(
 
 @mqtt_handler("led/+/set")
 async def handle_command(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a command to change an LED state."""
     device_connection = module.device_connection
@@ -55,7 +55,7 @@ async def handle_command(
 
 @mqtt_handler("led/+/state")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a led."""
     if not config.retained_broker_states:

@@ -9,7 +9,7 @@ from pypck import inputs
 
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
-from lcn2mqtt.models.module import Module
+from lcn2mqtt.models.device import Device
 
 _MQTT_HANDLER_REGISTRY: list[tuple[re.Pattern[str], Callable[..., Awaitable[Any]]]] = []
 _INPUT_HANDLER_REGISTRY: list[
@@ -47,7 +47,7 @@ def mqtt_handler(
 async def dispatch_mqtt(
     topic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
     *args: Any,
     **kwargs: Any,

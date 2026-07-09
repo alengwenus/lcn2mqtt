@@ -10,7 +10,7 @@ from pypck import inputs, lcn_defs
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 
-from ..models.module import Module, RelayState
+from ..models.device import Device, RelayState
 from .dispatcher import input_handler, mqtt_handler
 
 _LOG = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ _LOG = logging.getLogger(__name__)
 @input_handler(inputs.ModStatusRelays)
 def handle_relay_status(
     inp: inputs.ModStatusRelays,
-    module: Module,
+    module: Device,
 ) -> Generator[MqttMessage]:
     """Handle a relay status input, update the module state, and return any changes."""
     states = [RelayState.ON if s else RelayState.OFF for s in inp.states]
@@ -31,7 +31,7 @@ def handle_relay_status(
 
 @mqtt_handler("relay/+/set")
 async def handle_set(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a command to change a relay state."""
     device_connection = module.device_connection
@@ -61,7 +61,7 @@ async def handle_set(
 
 @mqtt_handler("relay/+/state")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a relay."""
     if not config.retained_broker_states:

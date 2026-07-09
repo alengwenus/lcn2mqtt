@@ -11,7 +11,7 @@ from pypck import inputs, lcn_defs
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 
-from ..models.module import Module, MotorState
+from ..models.device import Device, MotorState
 from .dispatcher import input_handler, mqtt_handler
 
 _LOG = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ Publish = Callable[[str, Any], Awaitable[None]]
 
 @input_handler(inputs.ModStatusRelays)
 def handle_motor_relays_status(
-    inp: inputs.ModStatusRelays, module: Module
+    inp: inputs.ModStatusRelays, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
     states = [MotorState.OPEN] * 4
@@ -43,7 +43,7 @@ def handle_motor_relays_status(
 
 @input_handler(inputs.ModStatusMotorPositionModule)
 def handle_motor_relays_position_module_status(
-    inp: inputs.ModStatusMotorPositionModule, module: Module
+    inp: inputs.ModStatusMotorPositionModule, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
     motor = inp.motor + 1
@@ -58,7 +58,7 @@ def handle_motor_relays_position_module_status(
 
 @input_handler(inputs.ModStatusMotorPositionBS4)
 def handle_motor_position_module_bs4(
-    inp: inputs.ModStatusMotorPositionBS4, module: Module
+    inp: inputs.ModStatusMotorPositionBS4, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
     motor = inp.motor + 1
@@ -75,7 +75,7 @@ def handle_motor_position_module_bs4(
 async def handle_motor_relays_set(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change a motor state."""
@@ -133,7 +133,7 @@ async def handle_motor_relays_set(
 
 @input_handler(inputs.ModStatusOutput)
 def handle_motor_outputs_status(
-    inp: inputs.ModStatusOutput, module: Module
+    inp: inputs.ModStatusOutput, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
     if inp.get_percent() > 0:  # motor is on
@@ -154,7 +154,7 @@ def handle_motor_outputs_status(
 
 @input_handler(inputs.ModStatusMotorPositionModule)
 def handle_motor_outputs_position_module_status(
-    inp: inputs.ModStatusMotorPositionModule, module: Module
+    inp: inputs.ModStatusMotorPositionModule, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
     motor = inp.motor + 1
@@ -172,7 +172,7 @@ def handle_motor_outputs_position_module_status(
 async def handle_motor_outputs_set(
     subtopic: str,
     payload: str,
-    module: Module,
+    module: Device,
     config: AppConfig,
 ) -> None:
     """Handle a command to change a motor state."""
@@ -220,7 +220,7 @@ async def handle_motor_outputs_set(
 
 @mqtt_handler("motor/+/state", "motor/+/position")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a motor."""
     if not config.retained_broker_states:

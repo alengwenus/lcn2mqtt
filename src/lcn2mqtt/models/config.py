@@ -22,10 +22,10 @@ from pydantic_settings import (
 )
 from pypck.lcn_addr import LcnAddr
 
+from lcn2mqtt.models.device import Device
 from lcn2mqtt.models.homeassistant.discovery import (
     HomeAssistantModuleDiscoveryConfig,
 )
-from lcn2mqtt.models.module import Module
 
 _LOG = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def flatten_with_values(
     return items
 
 
-class DeviceConfig(Module):
+class DeviceConfig(Device):
     """Configuration for a single LCN module/device."""
 
     model_config = ConfigDict(extra="forbid")
@@ -149,7 +149,7 @@ class AppConfig(BaseSettings):
                 {
                     key: value
                     for key, value in device.items()
-                    if key in Module.model_fields and key != "address"
+                    if key in Device.model_fields and key != "address"
                 }
             )
             for path, value in flattened:

@@ -5,14 +5,14 @@ from unittest.mock import AsyncMock
 
 from lcn2mqtt.handlers.extra import handle_dyn_text_set, handle_pck_set
 from lcn2mqtt.models.config import AppConfig
-from lcn2mqtt.models.module import Module
+from lcn2mqtt.models.device import Device
 
 
 class TestHandlePckSet:
     """Tests for the PCK set MQTT command handler."""
 
     async def test_handle_pck_set(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """Test that handle_pck_set calls device_connection.pck with the correct payload."""
         payload = "PIN003"
@@ -25,7 +25,7 @@ class TestHandleDynTextSet:
     """Tests for the dynamic text set MQTT command handler."""
 
     async def test_handle_dyn_text_set(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """Test that handle_dyn_text_set calls device_connection.dyn_text with the correct index and payload."""
         payload = "Hello"
@@ -34,7 +34,7 @@ class TestHandleDynTextSet:
         conn.dyn_text.assert_awaited_once_with(0, payload)  # Index is 0-based
 
     async def test_out_of_range_index_is_ignored(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """A dyn_text index outside 1-4 is silently ignored."""
         await handle_dyn_text_set("dyn_text/5/set", "Hello", module_with_conn, config)
