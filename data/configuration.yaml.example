@@ -12,6 +12,16 @@ devices:
     variable4:
       unit: "percent"
 
+    motor2:
+      positioning_mode: module
+
+    motor3:
+      positioning_mode: bs4
+
+    motor_outputs:
+      reverse_time: rt600
+      positioning_mode: module
+
     homeassistant:
       include: [output1, output2, relay1, relay2, led1, led2, variable3, variable4, binsensor2]
 
@@ -26,6 +36,18 @@ devices:
         cover1:
           name: "Cover Relays"
           target: motor1
+
+        cover2:
+          name: "Cover PosRelays"
+          target: motor2
+
+        cover3:
+          name: "Cover BS4"
+          target: motor3
+
+        cover_outputs:
+          name: "Cover Outputs"
+          target: outputs
 
       sensors:
         output_value1:
