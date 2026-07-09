@@ -284,10 +284,21 @@ class Bridge:
             return
 
         payload = (
-            msg.payload.decode("utf-8", errors="replace").strip().lower()
+            msg.payload.decode("utf-8", errors="replace").strip()
             if isinstance(msg.payload, (bytes, bytearray))
-            else str(msg.payload).strip().lower()
+            else str(msg.payload).strip()
         )
+
+        # normalize payload to lowercase for non-pck and non-dyn_text topics
+        if subtopic not in (
+            "pck/set",
+            "dyn_text/1/set",
+            "dyn_text/2/set",
+            "dyn_text/3/set",
+            "dyn_text/4/set",
+        ):
+            payload = payload.lower()
+
         # _LOG.debug("Received: %s = %r", topic, payload)
 
         module = await self.ensure_device_complete(
