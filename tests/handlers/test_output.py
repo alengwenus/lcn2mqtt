@@ -17,7 +17,7 @@ from lcn2mqtt.handlers.output import (
     handle_set_transition,
 )
 from lcn2mqtt.models.config import AppConfig
-from lcn2mqtt.models.module import Module, OutputState
+from lcn2mqtt.models.device import Device, OutputState
 
 
 class TestHandleOutputInput:
@@ -32,7 +32,7 @@ class TestHandleOutputInput:
         ],
     )
     async def test_state_published_for_brightness(
-        self, module: Module, brightness: float, expected_state: OutputState
+        self, module: Device, brightness: float, expected_state: OutputState
     ) -> None:
         """The ON/OFF state is published based on the brightness value."""
         inp = inputs.ModStatusOutput(module.address, 0, brightness)
@@ -42,7 +42,7 @@ class TestHandleOutputInput:
         )
         assert state_msg.payload == expected_state.name.lower()
 
-    async def test_brightness_message_always_published(self, module: Module) -> None:
+    async def test_brightness_message_always_published(self, module: Device) -> None:
         """A brightness message is always included regardless of state change."""
         inp = inputs.ModStatusOutput(module.address, 0, 50.0)
         messages = list(handle_input(inp, module=module))
@@ -51,7 +51,7 @@ class TestHandleOutputInput:
         )
         assert brightness_msg.payload == "50.00"
 
-    async def test_no_state_message_when_state_unchanged(self, module: Module) -> None:
+    async def test_no_state_message_when_state_unchanged(self, module: Device) -> None:
         """No state message is emitted when the ON/OFF state does not change."""
         module.output1.state = OutputState.ON
         inp = inputs.ModStatusOutput(module.address, 0, 80.0)
@@ -59,7 +59,7 @@ class TestHandleOutputInput:
         assert not any(message.topic == "output/1/state" for message in messages)
 
     async def test_no_brightness_message_when_brightness_unchanged(
-        self, module: Module
+        self, module: Device
     ) -> None:
         """No brightness message is emitted when the brightness does not change."""
         module.output1.brightness = 80.0
@@ -72,7 +72,7 @@ class TestHandleSetBrightness:
     """Tests for the set_brightness MQTT command handler."""
 
     async def test_valid_brightness_updates_module(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """A valid float payload updates output.brightness."""
         await handle_set_brightness(
@@ -82,7 +82,7 @@ class TestHandleSetBrightness:
 
     async def test_invalid_payload_logs_warning_and_leaves_value(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -96,7 +96,7 @@ class TestHandleSetBrightness:
         assert any("brightness" in r.message.lower() for r in caplog.records)
 
     async def test_out_of_range_index_is_ignored(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """An output index outside 1-4 is silently ignored."""
         await handle_set_brightness(
@@ -109,7 +109,7 @@ class TestHandleSetTransition:
     """Tests for the set_transition MQTT command handler."""
 
     async def test_valid_transition_updates_module(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """A valid integer payload updates output.transition in ms."""
         await handle_set_transition(
@@ -119,7 +119,7 @@ class TestHandleSetTransition:
 
     async def test_invalid_payload_logs_warning(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -135,7 +135,7 @@ class TestHandleSet:
     """Tests for the output set MQTT command handler."""
 
     async def test_on_when_off_calls_toggle(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'on' command when output is currently OFF triggers toggle_output."""
         assert module_with_conn._device_connection
@@ -148,7 +148,7 @@ class TestHandleSet:
         )  # idx-1, ramp, to_memory
 
     async def test_on_when_already_on_calls_dim(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'on' command when output is already ON dims to the stored brightness."""
         assert module_with_conn._device_connection
@@ -160,7 +160,7 @@ class TestHandleSet:
         conn.dim_output.assert_awaited_with(0, 80.0, 0)  # idx-1, brightness, ramp
 
     async def test_off_when_on_calls_toggle(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'off' command when output is ON triggers toggle_output."""
         assert module_with_conn._device_connection
@@ -173,7 +173,7 @@ class TestHandleSet:
         )  # idx-1, ramp, to_memory
 
     async def test_off_when_already_off_calls_dim(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'off' command when output is already OFF dims to 0."""
         assert module_with_conn._device_connection
@@ -188,7 +188,7 @@ class TestHandleSet:
         )
 
     async def test_numeric_payload_calls_dim(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """A numeric string payload dims the output to that brightness."""
         assert module_with_conn._device_connection
@@ -202,7 +202,7 @@ class TestHandleSet:
         )
 
     async def test_brightness_clamped_to_100(
-        self, module_with_conn: Module, config: AppConfig
+        self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """Brightness values above 100 are clamped to 100."""
         assert module_with_conn._device_connection
@@ -214,7 +214,7 @@ class TestHandleSet:
 
     async def test_invalid_payload_logs_warning(
         self,
-        module_with_conn: Module,
+        module_with_conn: Device,
         config: AppConfig,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -236,7 +236,7 @@ class TestHandleRetainedState:
     )
     async def test_retained_state_updates_module(
         self,
-        module: Module,
+        module: Device,
         config: AppConfig,
         payload: str,
         expected_state: OutputState,
@@ -247,7 +247,7 @@ class TestHandleRetainedState:
         assert module.output1.state == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Module, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
@@ -271,7 +271,7 @@ class TestHandleRetainedBrightness:
     )
     async def test_retained_brightness_updates_module(
         self,
-        module: Module,
+        module: Device,
         config: AppConfig,
         payload: str,
         expected_brightness: float,
@@ -291,7 +291,7 @@ class TestHandleRetainedBrightness:
     )
     async def test_invalid_payload_logs_warning(
         self,
-        module: Module,
+        module: Device,
         config: AppConfig,
         caplog: pytest.LogCaptureFixture,
         payload: str,

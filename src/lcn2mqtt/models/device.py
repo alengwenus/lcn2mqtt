@@ -189,8 +189,8 @@ class MotorOutput(Motor):
         return reverse_time
 
 
-class Module(BaseModel):
-    """Model for an LCN module."""
+class Device(BaseModel):
+    """Model for an LCN device."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

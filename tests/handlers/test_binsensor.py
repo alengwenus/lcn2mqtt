@@ -9,19 +9,19 @@ from pypck import inputs
 
 from lcn2mqtt.handlers.binsensor import handle_binsensor_input, handle_retained_state
 from lcn2mqtt.models.config import AppConfig
-from lcn2mqtt.models.module import Module
+from lcn2mqtt.models.device import Device
 
 
 class TestHandleBinsensorInput:
     """Tests for handle_binsensor_input."""
 
-    async def test_all_sensors_reported_on_first_call(self, module: Module) -> None:
+    async def test_all_sensors_reported_on_first_call(self, module: Device) -> None:
         """All 8 sensors produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusBinSensors(module.address, [False] * 8)
         messages = list(handle_binsensor_input(inp, module=module))
         assert len(messages) == 8
 
-    async def test_states_on_first_call(self, module: Module) -> None:
+    async def test_states_on_first_call(self, module: Device) -> None:
         """Sensor changing from unknown to True/False produces messages withcorrect payloads."""
         states = [True] * 4 + [False] * 4
         inp = inputs.ModStatusBinSensors(module.address, states)
@@ -33,7 +33,7 @@ class TestHandleBinsensorInput:
             for idx, (state, message) in enumerate(zip(states, messages))
         )
 
-    async def test_only_changed_sensors_produce_messages(self, module: Module) -> None:
+    async def test_only_changed_sensors_produce_messages(self, module: Device) -> None:
         """Only the sensors whose state changed produce a message."""
         # First call: set initial states
         list(
@@ -53,7 +53,7 @@ class TestHandleBinsensorInput:
         assert messages[0].topic == "binsensor/2/state"
         assert messages[0].payload == "on"
 
-    async def test_no_change_produces_no_messages(self, module: Module) -> None:
+    async def test_no_change_produces_no_messages(self, module: Device) -> None:
         """Identical consecutive inputs yield no messages."""
         inp = inputs.ModStatusBinSensors(module.address, [True, False] + [False] * 6)
         list(handle_binsensor_input(inp, module=module))
@@ -73,7 +73,7 @@ class TestHandleRetainedState:
     )
     async def test_retained_state_updates_module(
         self,
-        module: Module,
+        module: Device,
         config: AppConfig,
         payload: str,
         expected_state: bool,
@@ -84,7 +84,7 @@ class TestHandleRetainedState:
         assert module.binsensor1 == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Module, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):

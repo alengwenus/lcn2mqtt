@@ -9,14 +9,14 @@ from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 
-from ..models.module import Module
+from ..models.device import Device
 
 _LOG = logging.getLogger(__name__)
 
 
 @input_handler(inputs.ModStatusBinSensors)
 def handle_binsensor_input(
-    inp: inputs.ModStatusBinSensors, module: Module
+    inp: inputs.ModStatusBinSensors, module: Device
 ) -> Generator[MqttMessage]:
     """Handle binary sensors status input, update the module state, and publish any changes."""
     changed: list[bool] = module.update_binaries(inp.states)
@@ -29,7 +29,7 @@ def handle_binsensor_input(
 
 @mqtt_handler("binsensor/+/state")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Module, config: AppConfig
+    subtopic: str, payload: str, module: Device, config: AppConfig
 ) -> None:
     """Handle a request for the retained state of a binary sensor."""
     if not config.retained_broker_states:

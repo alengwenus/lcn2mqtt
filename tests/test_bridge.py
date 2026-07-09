@@ -15,7 +15,7 @@ from pypck.lcn_addr import LcnAddr
 from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import DeviceConfig
-from lcn2mqtt.models.module import Module
+from lcn2mqtt.models.device import Device
 
 # ---------------------------------------------------------------------------
 # Topic helpers
@@ -86,13 +86,13 @@ class TestEnsureModuleComplete:
         # existing._device_connection = MagicMock(spec=device.DeviceConnection)
         existing._device_connection = mock_device_conn
         # existing._device_connection.request_name = AsyncMock()
-        bridge_with_pchk.modules[addr] = existing
+        bridge_with_pchk.devices[addr] = existing
         # with patch.object(
         #     bridge_with_pchk._pchk,
         #     "get_device_connection",
         #     MagicMock(return_value=mock_device_conn),
         # ):
-        result = await bridge_with_pchk.ensure_module_complete(addr)
+        result = await bridge_with_pchk.ensure_device_complete(addr)
         assert result is existing
 
     async def test_new_module_auto_registered(
@@ -107,9 +107,9 @@ class TestEnsureModuleComplete:
             "get_device_connection",
             MagicMock(return_value=mock_device_conn),
         ):
-            result = await bridge_with_pchk.ensure_module_complete(addr)
-        assert addr in bridge_with_pchk.modules
-        assert result is bridge_with_pchk.modules[addr]
+            result = await bridge_with_pchk.ensure_device_complete(addr)
+        assert addr in bridge_with_pchk.devices
+        assert result is bridge_with_pchk.devices[addr]
         assert result.name == "NewModule"
 
     async def test_module_name_falls_back_when_request_fails(
@@ -123,15 +123,15 @@ class TestEnsureModuleComplete:
             "get_device_connection",
             MagicMock(return_value=mock_device_conn),
         ):
-            result = await bridge_with_pchk.ensure_module_complete(addr)
+            result = await bridge_with_pchk.ensure_device_complete(addr)
         assert result.name is None
 
     async def test_discovery_published_for_new_module(
         self, bridge_with_pchk: Bridge, mock_device_conn: MagicMock
     ) -> None:
-        """DiscoveryManager.publish_module is called when a new module is registered."""
+        """DiscoveryManager.publish_device is called when a new module is registered."""
         bridge_with_pchk._discovery = AsyncMock()
-        bridge_with_pchk._discovery.publish_module = AsyncMock()
+        bridge_with_pchk._discovery.publish_device = AsyncMock()
         addr = LcnAddr(0, 20, False)
         mock_device_conn.request_name = AsyncMock(return_value="Room")
         with patch.object(
@@ -139,8 +139,8 @@ class TestEnsureModuleComplete:
             "get_device_connection",
             MagicMock(return_value=mock_device_conn),
         ):
-            await bridge_with_pchk.ensure_module_complete(addr)
-        bridge_with_pchk._discovery.publish_module.assert_awaited_once()
+            await bridge_with_pchk.ensure_device_complete(addr)
+        bridge_with_pchk._discovery.publish_device.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -197,18 +197,18 @@ class TestHandleMqttMessage:
         """Messages whose topic does not start with the base topic are silently ignored."""
         bridge._mqtt = AsyncMock()
         with patch.object(
-            bridge, "ensure_module_complete"
-        ) as mocked_ensure_module_complete:
+            bridge, "ensure_device_complete"
+        ) as mocked_ensure_device_complete:
             msg = self._make_msg("unrelated/topic", "payload")
             await bridge._handle_mqtt_message(msg)
 
-            mocked_ensure_module_complete.assert_not_awaited()
+            mocked_ensure_device_complete.assert_not_awaited()
 
     async def test_dispatches_command(self, bridge: Bridge) -> None:
         """A well-formed command topic is dispatched to dispatch_mqtt with the correct module."""
         bridge._mqtt = AsyncMock()
         addr = LcnAddr(0, 7, False)
-        module = Module(address=addr)
+        module = Device(address=addr)
 
         with (
             patch(
@@ -216,7 +216,7 @@ class TestHandleMqttMessage:
             ) as mock_dispatch,
             patch.object(
                 bridge,
-                "ensure_module_complete",
+                "ensure_device_complete",
                 return_value=module,
             ),
         ):
@@ -229,13 +229,13 @@ class TestHandleMqttMessage:
         """Byte payloads are decoded to str and lower-cased before dispatch."""
         bridge._mqtt = AsyncMock()
         addr = LcnAddr(0, 7, False)
-        module = Module(address=addr)
+        module = Device(address=addr)
 
         with (
             patch("lcn2mqtt.bridge.dispatch_mqtt") as mock_dispatch,
             patch.object(
                 bridge,
-                "ensure_module_complete",
+                "ensure_device_complete",
                 return_value=module,
             ),
         ):
@@ -252,7 +252,7 @@ class TestHandleMqttMessage:
 
         with (
             caplog.at_level(logging.WARNING, logger="lcn2mqtt.bridge"),
-            patch.object(bridge, "ensure_module_complete"),
+            patch.object(bridge, "ensure_device_complete"),
         ):
             msg = self._make_msg("lcntest/notanumber/foo/bar/output1/set", "on")
             await bridge._handle_mqtt_message(msg)
@@ -274,10 +274,10 @@ class TestDispatchInput:
     ) -> None:
         """Messages yielded by dispatch_input are published to the module's MQTT prefix."""
         addr = LcnAddr(0, 7, False)
-        module = Module(address=addr)
+        module = Device(address=addr)
         with (
             patch.object(
-                bridge_with_pchk, "ensure_module_complete", return_value=module
+                bridge_with_pchk, "ensure_device_complete", return_value=module
             ),
             patch.object(
                 bridge_with_pchk, "_publish", new_callable=AsyncMock

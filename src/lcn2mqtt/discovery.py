@@ -114,17 +114,24 @@ class DiscoveryManager:
 
     # ---------- public API ----------
 
-    async def publish_module(self, lcn_addr: LcnAddr, module: DeviceConfig) -> None:
+    async def publish_device(self, lcn_addr: LcnAddr, device: DeviceConfig) -> None:
         """Publish a device-discovery entry for one LCN module."""
         addr_str = lcn_addr.to_string()
+        target_type = "group" if lcn_addr.is_group else "module"
         display_name = (
-            f"LCN {addr_str.upper()}" if module.name is None else module.name.strip()
+            f"LCN {target_type.capitalize()} ({addr_str.upper()})"
+            if device.name is None
+            else device.name.strip()
+        )
+
+        model = (
+            device.serials.type.description if not lcn_addr.is_group else "LCN Group"
         )
 
         cmps: dict[str, Any] = {}
 
-        if module.homeassistant is not None:
-            for identifier, cmp in module.homeassistant.components.items():
+        if device.homeassistant is not None:
+            for identifier, cmp in device.homeassistant.components.items():
                 cmps[identifier] = cmp.discovery_info()
 
             await self._publish_device(
@@ -134,11 +141,17 @@ class DiscoveryManager:
                         "identifiers": [f"{self._config.mqtt.base_topic}_{addr_str}"],
                         "name": display_name,
                         "manufacturer": "Issendorff",
-                        "model": module.serials.type.description,
-                        "serial_number": f"0x{module.serials.hardware:02X}",
-                        "sw_version": f"0x{module.serials.software:02X}",
+                        "model": model,
                         "hw_version": addr_str,
                         "via_device": self._bridge_identifier(),
+                        **(
+                            {
+                                "serial_number": f"0x{device.serials.hardware:02X}",
+                                "sw_version": f"0x{device.serials.software:02X}",
+                            }
+                            if not lcn_addr.is_group
+                            else {}
+                        ),
                     },
                     "availability": self._availability(),
                     "components": cmps,
@@ -178,4 +191,4 @@ class DiscoveryManager:
         for lcn_addr, module in modules.items():
             if lcn_addr.is_group:
                 continue
-            await self.publish_module(lcn_addr, module)
+            await self.publish_device(lcn_addr, module)

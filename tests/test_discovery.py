@@ -172,7 +172,7 @@ class TestPublishModule:
         device: DeviceConfig,
     ) -> None:
         """First publish call sends an empty payload to clear retained messages."""
-        await manager.publish_module(module_addr, device)
+        await manager.publish_device(module_addr, device)
         first_call = mqtt.publish.call_args_list[0]
         assert first_call.kwargs["payload"] == ""
 
@@ -184,7 +184,7 @@ class TestPublishModule:
         device: DeviceConfig,
     ) -> None:
         """Module discovery is published to homeassistant/device/<module_id>/config."""
-        await manager.publish_module(module_addr, device)
+        await manager.publish_device(module_addr, device)
         addr_str = module_addr.to_string()
         expected_topic = f"homeassistant/device/lcntest_{addr_str}/config"
         topics = [c.args[0] for c in mqtt.publish.call_args_list]
@@ -199,7 +199,7 @@ class TestPublishModule:
         snapshot: SnapshotAssertion,
     ) -> None:
         """Module payload contains a 'dev' key with manufacturer and model."""
-        await manager.publish_module(module_addr, device)
+        await manager.publish_device(module_addr, device)
         second_call = mqtt.publish.call_args_list[1]
         payload = json.loads(second_call.kwargs["payload"])
         assert payload == snapshot

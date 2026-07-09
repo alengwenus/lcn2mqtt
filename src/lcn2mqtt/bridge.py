@@ -18,7 +18,7 @@ from .discovery import DiscoveryManager
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
 from .helpers import singleflight
 from .models.config import AppConfig, DeviceConfig
-from .models.module import ModuleSerials
+from .models.device import ModuleSerials
 
 _LOG = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class Bridge:
     def __init__(self, config: AppConfig) -> None:
         """Initialize the Bridge with the application configuration."""
         self.config = config
-        self.modules: dict[LcnAddr, DeviceConfig] = config.devices
+        self.devices: dict[LcnAddr, DeviceConfig] = config.devices
         self._discovery: DiscoveryManager | None = None
 
     # ---------- topic helpers ----------
@@ -95,9 +95,9 @@ class Bridge:
                 self._discovery = DiscoveryManager(self.config, mqtt)
                 await self._discovery.publish_bridge()
 
-            # Ensure all modules from config are created and complete before starting.
-            for lcn_addr in self.modules:
-                await self.ensure_module_complete(lcn_addr)
+            # Ensure all devices from config are created and complete before starting.
+            for lcn_addr in self.devices:
+                await self.ensure_device_complete(lcn_addr)
 
             if self.config.homeassistant.scan_modules:
                 await self._discover_modules()
@@ -179,44 +179,48 @@ class Bridge:
         return device_connection
 
     @singleflight
-    async def ensure_module_complete(self, lcn_addr: LcnAddr) -> DeviceConfig:
+    async def ensure_device_complete(self, lcn_addr: LcnAddr) -> DeviceConfig:
         """Ensure a Module exists for the given LCN address and return it."""
         publish: bool = False
-        if lcn_addr not in self.modules:
+        if lcn_addr not in self.devices:
             _LOG.info(
                 "Auto-registering new LCN module %s",
                 lcn_addr.to_string(),
             )
-            self.modules[lcn_addr] = self.config.create_device_config(lcn_addr)
+            self.devices[lcn_addr] = self.config.create_device_config(lcn_addr)
             publish = True
 
-        module = self.modules[lcn_addr]
+        device = self.devices[lcn_addr]
 
         # ensure we have a device_connection and serials for the module
         try:
-            device_connection = module.device_connection
+            device_connection = device.device_connection
         except ValueError:
             # polls for module.serials automatically
             device_connection = await self._get_device_connection(lcn_addr)
-            module.device_connection = device_connection
+            device.device_connection = device_connection
 
-        if module.serials.hardware == -1:
-            module.serials = ModuleSerials(
-                hardware=device_connection.serials.hardware_serial,
-                software=device_connection.serials.software_serial,
-                manu=device_connection.serials.manu,
-                type=device_connection.serials.hardware_type,
-            )
-            publish = True
+        if not lcn_addr.is_group:
+            if device.serials.hardware == -1:
+                device.serials = ModuleSerials(
+                    hardware=device_connection.serials.hardware_serial,
+                    software=device_connection.serials.software_serial,
+                    manu=device_connection.serials.manu,
+                    type=device_connection.serials.hardware_type,
+                )
+                publish = True
 
-        if module.name is None:
-            module.name = await device_connection.request_name()
+        if device.name is None:
+            if lcn_addr.is_group:
+                device.name = f"LCN Group ({lcn_addr.to_string().upper()})"
+            else:
+                device.name = await device_connection.request_name()
             publish = True
 
         if self._discovery is not None and publish:
-            await self._discovery.publish_module(lcn_addr, module)
+            await self._discovery.publish_device(lcn_addr, device)
 
-        return module
+        return device
 
     async def _discover_modules(self) -> None:
         """Discover modules on the LCN bus and populate the modules dictionary."""
@@ -232,7 +236,7 @@ class Bridge:
         )
 
         for lcn_addr in self._pchk.device_connections:
-            await self.ensure_module_complete(lcn_addr)
+            await self.ensure_device_complete(lcn_addr)
 
     # ---------- LCN -> MQTT ----------
 
@@ -248,7 +252,7 @@ class Bridge:
             if lcn_addr is None:
                 return
 
-            module = await self.ensure_module_complete(
+            module = await self.ensure_device_complete(
                 lcn_addr
             )  # ensure module exists and is complete before handling input
             prefix = self._addr_prefix(lcn_addr)
@@ -270,6 +274,7 @@ class Bridge:
         if not topic.startswith(base + "/"):
             return
 
+        # _LOG.debug("Received MQTT message: %s = %r", topic, msg.payload)
         try:
             # expected topic format: <base>/<module|group>/<seg>/<addr>/<handler>/<subtopics...>
             lcn_addr = self._parse_addr_from_topic(topic)
@@ -285,7 +290,7 @@ class Bridge:
         )
         # _LOG.debug("Received: %s = %r", topic, payload)
 
-        module = await self.ensure_module_complete(
+        module = await self.ensure_device_complete(
             lcn_addr
         )  # ensure module exists and is complete before handling input
 
