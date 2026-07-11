@@ -218,9 +218,26 @@ def finalize_config(config: AppConfig) -> None:
 
 
 def load_config(
-    yaml_file: str = "data/configuration.yaml",
+    config_path: str = "./data",
 ) -> AppConfig:
     """Load configuration from the specified YAML file and environment variables."""
+    local_config_path = os.environ.get("LCN2MQTT__CONFIG_PATH", config_path)
+    if os.environ.get("LCN2MQTT__RUNNING_IN_DOCKER", "false").lower() == "true":
+        # if RUNNING_IN_DOCKER is set, use /lcn2mqtt/data as config path
+        config_path = "/lcn2mqtt/data"
+        _LOG.info("Running in Docker")
+    else:
+        config_path = local_config_path
+
+    if not os.path.exists(config_path):
+        _LOG.warning(
+            "Local config path at %s does not exist",
+            config_path,
+        )
+    else:
+        _LOG.info("Using local config path: %s", local_config_path)
+
+    yaml_file = os.path.join(config_path, "configuration.yaml")
     config = AppConfig(yaml_file=yaml_file)
     finalize_config(config)
     return config

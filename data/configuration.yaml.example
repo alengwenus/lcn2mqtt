@@ -1,0 +1,58 @@
+devices:
+  m000007:
+    output1:
+      transition: 0
+
+    variable1:
+      unit: "celsius"
+
+    setpoint1:
+      unit: "celsius"
+
+    variable4:
+      unit: "percent"
+
+    homeassistant:
+      include: [output1, output2, relay1, relay2, led1, led2, variable3, variable4, binsensor2]
+
+      exclude: [variable3]
+
+      binary_sensors:
+        door_sensor:
+          name: "Door Sensor"
+          source: binsensor1
+
+      covers:
+        cover1:
+          name: "Cover Relays"
+          target: motor1
+
+      sensors:
+        output_value1:
+          name: "Output Value 1"
+          source: "variable3"
+
+      switches:
+        waterpump:
+          name: "Water Pump"
+          target: relay1
+
+      lights:
+        bedroomlight:
+          name: "Bedroom Light"
+          target: output1
+
+      climates:
+          thermostat:
+            name: "Thermostat"
+            temperature: setpoint1
+            current_temperature: variable1
+
+
+homeassistant:
+  enabled: true
+  scan_modules: false
+
+
+log_level: "debug"
+retained_broker_states: true
