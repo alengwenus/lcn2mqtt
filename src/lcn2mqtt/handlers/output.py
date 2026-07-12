@@ -31,7 +31,8 @@ def handle_input(inp: inputs.ModStatusOutput, module: Device) -> Generator[MqttM
     state_changed = output.update_state(
         OutputState.ON if inp.percent > 0 else OutputState.OFF
     )
-    brightness_changed = output.update_brightness(inp.percent)
+    # brightness_changed = output.update_brightness(inp.percent)
+    brightness_changed = True  # Always publish brightness, even if unchanged, to ensure retained state is correct
 
     if state_changed:
         yield MqttMessage(
