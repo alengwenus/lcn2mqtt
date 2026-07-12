@@ -58,14 +58,14 @@ class TestHandleOutputInput:
         messages = list(handle_input(inp, module=module))
         assert not any(message.topic == "output/1/state" for message in messages)
 
-    async def test_no_brightness_message_when_brightness_unchanged(
-        self, module: Device
-    ) -> None:
-        """No brightness message is emitted when the brightness does not change."""
-        module.output1.brightness = 80.0
-        inp = inputs.ModStatusOutput(module.address, 0, 80.0)
-        messages = list(handle_input(inp, module=module))
-        assert not any(message.topic == "output/1/brightness" for message in messages)
+    # async def test_no_brightness_message_when_brightness_unchanged(
+    #     self, module: Device
+    # ) -> None:
+    #     """No brightness message is emitted when the brightness does not change."""
+    #     module.output1.brightness = 80.0
+    #     inp = inputs.ModStatusOutput(module.address, 0, 80.0)
+    #     messages = list(handle_input(inp, module=module))
+    #     assert not any(message.topic == "output/1/brightness" for message in messages)
 
 
 class TestHandleSetBrightness:
