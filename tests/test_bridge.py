@@ -204,9 +204,9 @@ class TestHandleMqttMessage:
 
             mocked_ensure_device_complete.assert_not_awaited()
 
-    async def test_dispatches_command(self, bridge: Bridge) -> None:
+    async def test_dispatches_command(self, bridge_with_pchk: Bridge) -> None:
         """A well-formed command topic is dispatched to dispatch_mqtt with the correct module."""
-        bridge._mqtt = AsyncMock()
+        bridge_with_pchk._mqtt = AsyncMock()
         addr = LcnAddr(0, 7, False)
         module = Device(address=addr)
 
@@ -215,32 +215,34 @@ class TestHandleMqttMessage:
                 "lcn2mqtt.bridge.dispatch_mqtt", new_callable=AsyncMock
             ) as mock_dispatch,
             patch.object(
-                bridge,
+                bridge_with_pchk,
                 "ensure_device_complete",
                 return_value=module,
             ),
         ):
             msg = self._make_msg("lcntest/module/0/7/output/1/set", "on")
-            await bridge._handle_mqtt_message(msg)
+            await bridge_with_pchk._handle_mqtt_message(msg)
             mock_dispatch.assert_awaited_once()
             assert mock_dispatch.call_args.args[2] is module
 
-    async def test_payload_decoded_and_lowercased(self, bridge: Bridge) -> None:
+    async def test_payload_decoded_and_lowercased(
+        self, bridge_with_pchk: Bridge
+    ) -> None:
         """Byte payloads are decoded to str and lower-cased before dispatch."""
-        bridge._mqtt = AsyncMock()
+        bridge_with_pchk._mqtt = AsyncMock()
         addr = LcnAddr(0, 7, False)
         module = Device(address=addr)
 
         with (
             patch("lcn2mqtt.bridge.dispatch_mqtt") as mock_dispatch,
             patch.object(
-                bridge,
+                bridge_with_pchk,
                 "ensure_device_complete",
                 return_value=module,
             ),
         ):
             msg = self._make_msg("lcntest/module/0/7/output/1/set", b"  ON  ")
-            await bridge._handle_mqtt_message(msg)
+            await bridge_with_pchk._handle_mqtt_message(msg)
             mock_dispatch.assert_awaited_once()
             assert mock_dispatch.call_args.args[1] == "on"
 
