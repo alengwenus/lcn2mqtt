@@ -38,6 +38,7 @@ def bridge(config: AppConfig) -> Bridge:
 def bridge_with_pchk(bridge: Bridge) -> Bridge:
     """Return a bridge with mocked PCHK, MQTT and no discovery."""
     bridge._pchk = MagicMock()
+    bridge._pchk.physical_to_logical = lambda addr: addr
     bridge._mqtt = AsyncMock()
     bridge._discovery = None
     return bridge

@@ -32,12 +32,14 @@ class Bridge:
     _pchk: PchkConnectionManager
     _mqtt: aiomqtt.Client
     _loop_task: asyncio.Task[None]
+    _tg_mqtt: asyncio.TaskGroup
 
     def __init__(self, config: AppConfig) -> None:
         """Initialize the Bridge with the application configuration."""
         self.config = config
         self.devices: dict[LcnAddr, DeviceConfig] = config.devices
         self._discovery: DiscoveryManager | None = None
+        self._on_lcn_input_tasks: set[asyncio.Task[None]] = set()
 
     # ---------- topic helpers ----------
 
@@ -106,7 +108,8 @@ class Bridge:
 
             await self._subscribe_command_topics(mqtt)
 
-            await self._mqtt_message_loop(mqtt)
+            async with asyncio.TaskGroup() as self._tg_mqtt:
+                await self._mqtt_message_loop(mqtt)
 
     # ---------- MQTT ----------
 
@@ -154,7 +157,12 @@ class Bridge:
         """Loop to handle incoming MQTT messages."""
         async for msg in mqtt.messages:
             try:
-                await self._handle_mqtt_message(msg)
+                # Note: This might lead to an unexpected execution order of MQTT
+                # messages. Especially with multiple messages like dimming outputs
+                # (e.g., /set_brightness, /set)
+                self._tg_mqtt.create_task(self._handle_mqtt_message(msg))
+                # await self._handle_mqtt_message(msg)
+
             except Exception:  # noqa: BLE001
                 _LOG.exception("Failed to handle MQTT message %s", msg.topic)
 
@@ -243,14 +251,17 @@ class Bridge:
     def _on_lcn_input(self, inp: inputs.Input) -> None:
         """Schedules async dispatch from incoming LCN inputs."""
         # Schedule async dispatch; pypck calls this from the event loop.
-        asyncio.create_task(self._dispatch_input(inp))
+        task = asyncio.create_task(self._dispatch_input(inp))
+        self._on_lcn_input_tasks.add(task)
+        task.add_done_callback(self._on_lcn_input_tasks.discard)
 
     async def _dispatch_input(self, inp: inputs.Input) -> None:
         """Dispatch an incoming LCN input to the appropriate handler and MQTT topic."""
         try:
-            lcn_addr: LcnAddr | None = getattr(inp, "physical_source_addr", None)
-            if lcn_addr is None:
+            physical_source_address = getattr(inp, "physical_source_addr", None)
+            if physical_source_address is None:
                 return
+            lcn_addr: LcnAddr = self._pchk.physical_to_logical(physical_source_address)
 
             module = await self.ensure_device_complete(
                 lcn_addr
@@ -277,7 +288,10 @@ class Bridge:
         # _LOG.debug("Received MQTT message: %s = %r", topic, msg.payload)
         try:
             # expected topic format: <base>/<module|group>/<seg>/<addr>/<handler>/<subtopics...>
-            lcn_addr = self._parse_addr_from_topic(topic)
+            physical_source_address = self._parse_addr_from_topic(topic)
+            logical_source_address = self._pchk.physical_to_logical(
+                physical_source_address
+            )
             subtopic = topic.lower().split("/", 4)[-1]
         except Exception:  # noqa: BLE001
             _LOG.warning("Received MQTT message with invalid topic format: %s", topic)
@@ -302,7 +316,7 @@ class Bridge:
         # _LOG.debug("Received: %s = %r", topic, payload)
 
         module = await self.ensure_device_complete(
-            lcn_addr
+            logical_source_address
         )  # ensure module exists and is complete before handling input
 
         await dispatch_mqtt(subtopic, payload, module, self.config)
