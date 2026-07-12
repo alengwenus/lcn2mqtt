@@ -258,9 +258,10 @@ class Bridge:
     async def _dispatch_input(self, inp: inputs.Input) -> None:
         """Dispatch an incoming LCN input to the appropriate handler and MQTT topic."""
         try:
-            lcn_addr: LcnAddr | None = getattr(inp, "physical_source_addr", None)
-            if lcn_addr is None:
+            physical_source_address = getattr(inp, "physical_source_addr", None)
+            if physical_source_address is None:
                 return
+            lcn_addr: LcnAddr = self._pchk.physical_to_logical(physical_source_address)
 
             module = await self.ensure_device_complete(
                 lcn_addr
@@ -287,7 +288,10 @@ class Bridge:
         # _LOG.debug("Received MQTT message: %s = %r", topic, msg.payload)
         try:
             # expected topic format: <base>/<module|group>/<seg>/<addr>/<handler>/<subtopics...>
-            lcn_addr = self._parse_addr_from_topic(topic)
+            physical_source_address = self._parse_addr_from_topic(topic)
+            logical_source_address = self._pchk.physical_to_logical(
+                physical_source_address
+            )
             subtopic = topic.lower().split("/", 4)[-1]
         except Exception:  # noqa: BLE001
             _LOG.warning("Received MQTT message with invalid topic format: %s", topic)
@@ -312,7 +316,7 @@ class Bridge:
         # _LOG.debug("Received: %s = %r", topic, payload)
 
         module = await self.ensure_device_complete(
-            lcn_addr
+            logical_source_address
         )  # ensure module exists and is complete before handling input
 
         await dispatch_mqtt(subtopic, payload, module, self.config)
