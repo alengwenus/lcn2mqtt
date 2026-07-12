@@ -47,7 +47,7 @@ class MotorState(StrEnum):
     CLOSED = "closed"
     OPENING = "opening"
     CLOSING = "closing"
-    STOP = "stop"
+    UNKNOWN = "unknown"
 
 
 VariableValue = Annotated[int | None, Field(ge=0)]

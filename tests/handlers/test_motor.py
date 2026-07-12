@@ -248,7 +248,7 @@ class TestHandleRetainedState:
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
-            await handle_retained_state("motor/1/state", "unknown", module, config)
+            await handle_retained_state("motor/1/state", "other", module, config)
         assert any(
             "Invalid motor state payload" in record.message for record in caplog.records
         )
