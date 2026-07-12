@@ -29,10 +29,17 @@ def handle_motor_relays_status(
     """Handle a motor position status input, update the module state, and publish any changes."""
     states = [MotorState.OPEN] * 4
     for idx in range(4):
-        if inp.is_opening(idx):
+        motor_obj = getattr(module, f"motor{idx + 1}")
+        if inp.is_opening(idx) and motor_obj.position != 100:
             states[idx] = MotorState.OPENING
-        elif inp.is_closing(idx):
+        elif inp.is_closing(idx) and motor_obj.position != 0:
             states[idx] = MotorState.CLOSING
+        elif motor_obj.positioning_mode in (
+            lcn_defs.MotorPositioningMode.MODULE,
+            lcn_defs.MotorPositioningMode.BS4,
+        ):
+            # open/closed is handled by positioning status inputs, so we don't need to publish anything here
+            continue
         elif inp.is_assumed_closed(idx):
             states[idx] = MotorState.CLOSED
     changed = module.update_motors(states)
@@ -50,6 +57,11 @@ def handle_motor_relays_position_module_status(
     position = inp.position
 
     motor_obj = getattr(module, f"motor{motor}")
+
+    if position == 100:
+        yield MqttMessage(f"motor/{motor}/state", MotorState.OPEN.value)
+    elif position == 0:
+        yield MqttMessage(f"motor/{motor}/state", MotorState.CLOSED.value)
 
     did_change = motor_obj.update_position(position)
     if did_change:
