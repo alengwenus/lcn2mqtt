@@ -149,9 +149,12 @@ def handle_motor_outputs_status(
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
     if inp.get_percent() > 0:  # motor is on
-        if inp.get_output_id() == lcn_defs.OutputPort.OUTPUTUP.value:
+        if (
+            inp.get_output_id() == lcn_defs.OutputPort.OUTPUTUP.value
+            and module.motor_outputs.position != 100
+        ):
             state = MotorState.OPENING
-        else:
+        elif module.motor_outputs.position != 0:
             state = MotorState.CLOSING
 
     # motor is off, but we don't know if it is open or closed
