@@ -148,20 +148,24 @@ def handle_motor_outputs_status(
     inp: inputs.ModStatusOutput, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
-    if inp.get_percent() > 0:  # motor is on
-        if (
-            inp.get_output_id() == lcn_defs.OutputPort.OUTPUTUP.value
-            and module.motor_outputs.position != 100
-        ):
+    if module.motor_outputs.positioning_mode == lcn_defs.MotorPositioningMode.MODULE:
+        if inp.get_percent() == 0:
+            # motor was stopped (probably during motion)
+            if module.motor_outputs.state not in (
+                MotorState.OPEN,
+                MotorState.CLOSED,
+            ):
+                module.motor_outputs.state = MotorState.OPEN
+
+    # No positioning mode: We can only assume the motor state based on the module's outputs state.
+    # Motor is on:
+    elif inp.get_percent() > 0:  # motor is on
+        if inp.get_output_id() == lcn_defs.OutputPort.OUTPUTUP.value:
             state = MotorState.OPENING
-        elif module.motor_outputs.position != 0:
+        else:
             state = MotorState.CLOSING
 
-    # motor is off, but we don't know if it is open or closed
-    elif module.motor_outputs.positioning_mode == lcn_defs.MotorPositioningMode.MODULE:
-        return  # open/closed is handled by positioning status inputs, so we don't need to publish anything here
-
-    # No positioning: cover is assumed to be closed if we were in closing state before
+    # Motor is off: Cover is assumed to be closed if we were in closing state before
     elif module.motor_outputs.state == MotorState.CLOSING:
         state = MotorState.CLOSED
     else:
@@ -186,14 +190,20 @@ def handle_motor_outputs_position_module_status(
     if motor != 4:
         return  # only handle motor 4 for outputs
 
-    if position == 100:
-        yield MqttMessage("motor/outputs/state", MotorState.OPEN.value)
-    elif position == 0:
-        yield MqttMessage("motor/outputs/state", MotorState.CLOSED.value)
+    old_position = module.motor_outputs.position
 
     did_change = module.motor_outputs.update_position(position)
     if did_change:
         yield MqttMessage("motor/outputs/position", f"{position}")
+
+    if position == 100:
+        yield MqttMessage("motor/outputs/state", MotorState.OPEN.value)
+    elif position == 0:
+        yield MqttMessage("motor/outputs/state", MotorState.CLOSED.value)
+    elif old_position is not None and position > old_position:
+        yield MqttMessage("motor/outputs/state", MotorState.OPENING.value)
+    elif old_position is not None and position < old_position:
+        yield MqttMessage("motor/outputs/state", MotorState.CLOSING.value)
 
 
 @mqtt_handler("motor/outputs/set", "motor/outputs/set_position")
