@@ -156,15 +156,16 @@ class Bridge:
     async def _mqtt_message_loop(self, mqtt: aiomqtt.Client) -> None:
         """Loop to handle incoming MQTT messages."""
         async for msg in mqtt.messages:
-            try:
-                # Note: This might lead to an unexpected execution order of MQTT
-                # messages. Especially with multiple messages like dimming outputs
-                # (e.g., /set_brightness, /set)
-                self._tg_mqtt.create_task(self._handle_mqtt_message(msg))
-                # await self._handle_mqtt_message(msg)
+            task = self._tg_mqtt.create_task(self._handle_mqtt_message(msg))
+            task.add_done_callback(self._log_task_exception)
 
-            except Exception:  # noqa: BLE001
-                _LOG.exception("Failed to handle MQTT message %s", msg.topic)
+    def _log_task_exception(self, task: asyncio.Task[None]) -> None:
+        """Log any exception raised while handling an MQTT message."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            _LOG.exception("Failed to handle MQTT message", exc_info=exc)
 
     # ---------- LCN ----------
 
