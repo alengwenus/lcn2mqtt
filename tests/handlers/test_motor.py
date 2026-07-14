@@ -127,31 +127,51 @@ class TestHandleMotorOutputsStatus:
     """Tests for the ModStatusOutput motor input handler."""
 
     async def test_outputs_reported_on_first_call(self, module: Device) -> None:
-        """All 4 motors produce a message on the very first call (all were unknown)."""
+        """All motors produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusOutput(module.address, 0, 0)
         messages = list(handle_motor_outputs_status(inp, module=module))
         assert len(messages) == 1
 
     @pytest.mark.parametrize(
-        "output_id, percent, prior_state, expected_state",
+        "output, percent, prior_state, expected_state",
         [
-            (0, 100.0, MotorState.CLOSED, MotorState.OPENING),
-            (1, 100.0, MotorState.CLOSED, MotorState.CLOSING),
-            (0, 0.0, MotorState.CLOSING, MotorState.CLOSED),
-            (0, 0.0, MotorState.OPENING, MotorState.OPEN),
+            (
+                lcn_defs.OutputPort.OUTPUTUP,
+                100.0,
+                MotorState.CLOSED,
+                MotorState.OPENING,
+            ),
+            (
+                lcn_defs.OutputPort.OUTPUTDOWN,
+                100.0,
+                MotorState.OPEN,
+                MotorState.CLOSING,
+            ),
+            (
+                lcn_defs.OutputPort.OUTPUTUP,
+                0.0,
+                MotorState.OPENING,
+                MotorState.OPEN,
+            ),
+            (
+                lcn_defs.OutputPort.OUTPUTDOWN,
+                0.0,
+                MotorState.CLOSING,
+                MotorState.CLOSED,
+            ),
         ],
     )
     async def test_motor_state_detected(
         self,
         module: Device,
-        output_id: int,
+        output: lcn_defs.OutputPort,
         percent: float,
         prior_state: MotorState,
         expected_state: MotorState,
     ) -> None:
         """Motor 1 reports the correct state based on relay inputs."""
         module.motor_outputs.state = prior_state
-        inp = inputs.ModStatusOutput(module.address, output_id, percent)
+        inp = inputs.ModStatusOutput(module.address, output.value, percent)
         messages = list(handle_motor_outputs_status(inp, module=module))
         msg = next(
             (message for message in messages if message.topic == "motor/outputs/state"),
@@ -162,7 +182,9 @@ class TestHandleMotorOutputsStatus:
 
     async def test_no_change_produces_no_messages(self, module: Device) -> None:
         """No messages are emitted when motor states are unchanged."""
-        inp = inputs.ModStatusOutput(module.address, 0, 0)
+        inp = inputs.ModStatusOutput(
+            module.address, lcn_defs.OutputPort.OUTPUTUP.value, 0
+        )
         list(handle_motor_outputs_status(inp, module=module))
         messages = list(handle_motor_outputs_status(inp, module=module))
         assert messages == []
