@@ -1,5 +1,6 @@
 """Dispatcher for handling MQTT commands and routing them to the appropriate handlers."""
 
+import inspect
 import re
 from collections.abc import Awaitable, Callable, Generator
 from functools import wraps
@@ -51,15 +52,23 @@ async def dispatch_mqtt(
     config: AppConfig,
     *args: Any,
     **kwargs: Any,
-) -> bool:
-    """Dispatch an MQTT command to the appropriate handler based on the topic."""
-    success = False
+) -> list[MqttMessage]:
+    """Dispatch an MQTT command to the appropriate handler based on the topic.
+
+    Returns any MqttMessages yielded by async-generator handlers, so the
+    caller can publish them (e.g. for immediate state resolution on `stop`).
+    """
+    messages: list[MqttMessage] = []
     for pattern, func in _MQTT_HANDLER_REGISTRY:
         match = pattern.match(topic)
         if match:
-            await func(topic, payload, module, config, *args, **kwargs)
-            success = True
-    return success
+            result = func(topic, payload, module, config, *args, **kwargs)
+            if inspect.isasyncgen(result):
+                async for message in result:
+                    messages.append(message)
+            else:
+                await result
+    return messages
 
 
 def input_handler(

@@ -320,4 +320,7 @@ class Bridge:
             logical_source_address
         )  # ensure module exists and is complete before handling input
 
-        await dispatch_mqtt(subtopic, payload, module, self.config)
+        messages = await dispatch_mqtt(subtopic, payload, module, self.config)
+        prefix = self._addr_prefix(logical_source_address)
+        for message in messages:
+            await self._publish(f"{prefix}/{message.topic}", message.payload)

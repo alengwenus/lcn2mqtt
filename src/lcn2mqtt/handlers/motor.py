@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from typing import Any
 
 from pypck import inputs, lcn_defs
@@ -147,38 +147,35 @@ async def handle_motor_relays_set(
 def handle_motor_outputs_status(
     inp: inputs.ModStatusOutput, module: Device
 ) -> Generator[MqttMessage]:
-    """Handle a motor position status input, update the module state, and publish any changes."""
-    state = MotorState.UNKNOWN
-    if module.motor_outputs.positioning_mode == lcn_defs.MotorPositioningMode.MODULE:
-        if inp.get_percent() == 0:
-            # motor was stopped (probably during motion)
-            if module.motor_outputs.state not in (
-                MotorState.OPEN,
-                MotorState.CLOSED,
-            ):
-                state = MotorState.OPEN
+    """Handle a motor output status input, update the module state, and publish any changes."""
+    motor_obj = module.motor_outputs
 
-    # No positioning mode: We can only assume the motor state based on the module's outputs state.
-    # Motor is on:
-    elif inp.get_percent() > 0:  # motor is on
+    if motor_obj.positioning_mode == lcn_defs.MotorPositioningMode.MODULE:
+        # final state is resolved directly from position/set events, not from
+        # the (possibly dimmed/delayed) output percentage
+        return
+
+    if inp.get_percent() > 0:  # motor is on
         if inp.get_output_id() == lcn_defs.OutputPort.OUTPUTUP.value:
             state = MotorState.OPENING
         elif inp.get_output_id() == lcn_defs.OutputPort.OUTPUTDOWN.value:
             state = MotorState.CLOSING
-
-    # Motor is off: Cover is assumed to be closed if we were in closing state before
+        else:
+            return
     elif (
         inp.get_output_id() == lcn_defs.OutputPort.OUTPUTDOWN.value
-        and module.motor_outputs.state == MotorState.CLOSING
+        and motor_obj.state == MotorState.CLOSING
     ):
         state = MotorState.CLOSED
     elif (
         inp.get_output_id() == lcn_defs.OutputPort.OUTPUTUP.value
-        and module.motor_outputs.state == MotorState.OPENING
+        and motor_obj.state == MotorState.OPENING
     ):
         state = MotorState.OPEN
+    else:
+        return
 
-    changed = module.motor_outputs.update_state(state)
+    changed = motor_obj.update_state(state)
     if changed:
         yield MqttMessage("motor/outputs/state", state.value)
 
@@ -188,7 +185,8 @@ def handle_motor_outputs_position_module_status(
     inp: inputs.ModStatusMotorPositionModule, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
-    if module.motor_outputs.positioning_mode != lcn_defs.MotorPositioningMode.MODULE:
+    motor_obj = module.motor_outputs
+    if motor_obj.positioning_mode != lcn_defs.MotorPositioningMode.MODULE:
         return
 
     motor = inp.motor + 1
@@ -197,20 +195,33 @@ def handle_motor_outputs_position_module_status(
     if motor != 4:
         return  # only handle motor 4 for outputs
 
-    old_position = module.motor_outputs.position
+    old_position = motor_obj.position
 
-    did_change = module.motor_outputs.update_position(position)
+    did_change = motor_obj.update_position(position)
     if did_change:
         yield MqttMessage("motor/outputs/position", f"{position}")
 
-    if position == 100:
-        yield MqttMessage("motor/outputs/state", MotorState.OPEN.value)
-    elif position == 0:
-        yield MqttMessage("motor/outputs/state", MotorState.CLOSED.value)
-    elif old_position is not None and position > old_position:
-        yield MqttMessage("motor/outputs/state", MotorState.OPENING.value)
+    target = motor_obj.target_position
+    reached_target = target is not None and position == target
+    reached_endstop = position in (0, 100) and target is None
+
+    if reached_target or reached_endstop:
+        state = MotorState.OPEN if position > 0 else MotorState.CLOSED
+        changed = motor_obj.update_state(state)
+        if changed:
+            yield MqttMessage("motor/outputs/state", state.value)
+        return
+
+    if old_position is not None and position > old_position:
+        state = MotorState.OPENING
     elif old_position is not None and position < old_position:
-        yield MqttMessage("motor/outputs/state", MotorState.CLOSING.value)
+        state = MotorState.CLOSING
+    else:
+        return
+
+    changed = motor_obj.update_state(state)
+    if changed:
+        yield MqttMessage("motor/outputs/state", state.value)
 
 
 @mqtt_handler("motor/outputs/set", "motor/outputs/set_position")
@@ -219,7 +230,7 @@ async def handle_motor_outputs_set(
     payload: str,
     module: Device,
     config: AppConfig,
-) -> None:
+) -> AsyncGenerator[MqttMessage]:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
     if device_connection is None:
@@ -230,22 +241,37 @@ async def handle_motor_outputs_set(
     except ValueError:
         return
 
+    motor_obj = module.motor_outputs
+
     if action == "set":
+        if payload == "stop":
+            await device_connection.control_motor_outputs(
+                lcn_defs.MotorStateModifier.STOP, motor_obj.reverse_time
+            )
+            motor_obj.target_position = motor_obj.position
+            if motor_obj.position is not None:
+                state = (
+                    MotorState.OPEN if motor_obj.position > 0 else MotorState.CLOSED
+                )
+                if motor_obj.update_state(state):
+                    yield MqttMessage("motor/outputs/state", state.value)
+            return
+
         modifier_map = {
             "open": lcn_defs.MotorStateModifier.UP,
             "up": lcn_defs.MotorStateModifier.UP,
             "close": lcn_defs.MotorStateModifier.DOWN,
             "down": lcn_defs.MotorStateModifier.DOWN,
-            "stop": lcn_defs.MotorStateModifier.STOP,
         }
         modifier = modifier_map.get(payload)
         if modifier is None:
             return
+        motor_obj.target_position = None
         await device_connection.control_motor_outputs(
-            modifier, module.motor_outputs.reverse_time
+            modifier, motor_obj.reverse_time
         )
     elif action == "set_position":
-        positioning_mode = module.motor_outputs.positioning_mode
+        positioning_mode = motor_obj.positioning_mode
         if positioning_mode != lcn_defs.MotorPositioningMode.MODULE:
             _LOG.warning(
                 "Outputs motor is not in a positioning mode, cannot set position"
@@ -255,6 +281,7 @@ async def handle_motor_outputs_set(
             position = int(payload)
         except ValueError as exc:
             raise ValueError(f"Invalid position payload: {payload}") from exc
+        motor_obj.target_position = position
         await device_connection.control_motor_outputs_position(
             position, positioning_mode
         )
