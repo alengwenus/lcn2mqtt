@@ -177,6 +177,9 @@ class MotorOutput(Motor):
         ]
         | None
     ) = lcn_defs.MotorPositioningMode.NONE
+    stop_timeout: float | None = (
+        None  # overrides the default inactivity stop timeout (in seconds)
+    )
 
     @field_validator("reverse_time", mode="before")
     @classmethod

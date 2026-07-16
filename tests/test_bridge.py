@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Generator
 from typing import Any
@@ -13,7 +14,7 @@ from pypck.inputs import Input
 from pypck.lcn_addr import LcnAddr
 
 from lcn2mqtt.bridge import Bridge
-from lcn2mqtt.helpers import MqttMessage
+from lcn2mqtt.helpers import DeferredMqttMessage, MqttMessage
 from lcn2mqtt.models.config import DeviceConfig
 from lcn2mqtt.models.device import Device
 
@@ -297,3 +298,144 @@ class TestDispatchInput:
             mock_publish.assert_awaited_once_with(
                 f"{bridge_with_pchk._addr_prefix(addr)}/output/1/state", "on"
             )
+
+    async def test_deferred_message_from_dispatch_is_scheduled(
+        self, bridge_with_pchk: Bridge
+    ) -> None:
+        """DeferredMqttMessage yielded by dispatch_input is registered in _deferred_timers."""
+        addr = LcnAddr(0, 7, False)
+        module = Device(address=addr)
+        inp = MagicMock(spec=inputs.ModStatusOutput)
+        inp.physical_source_addr = addr
+
+        deferred = DeferredMqttMessage(
+            topic="motor/outputs/state",
+            payload="open",
+            delay=10.0,
+        )
+
+        with (
+            patch.object(
+                bridge_with_pchk, "ensure_device_complete", return_value=module
+            ),
+            patch("lcn2mqtt.bridge.dispatch_input", return_value=iter([deferred])),
+        ):
+            await bridge_with_pchk._dispatch_input(inp)
+
+        prefix = bridge_with_pchk._addr_prefix(addr)
+        assert f"{prefix}/{deferred.topic}" in bridge_with_pchk._deferred_timers
+
+    async def test_cancel_only_deferred_removes_existing_timer(
+        self, bridge_with_pchk: Bridge
+    ) -> None:
+        """DeferredMqttMessage with delay=None cancels the existing timer and does not reschedule."""
+        addr = LcnAddr(0, 7, False)
+        module = Device(address=addr)
+        inp = MagicMock(spec=inputs.ModStatusOutput)
+        inp.physical_source_addr = addr
+
+        mock_handle = MagicMock()
+        bridge_with_pchk._deferred_timers[
+            f"{bridge_with_pchk._addr_prefix(addr)}/motor/outputs/state"
+        ] = mock_handle
+
+        cancel_only = DeferredMqttMessage(
+            topic="motor/outputs/state", payload=None
+        )  # delay=None
+
+        with (
+            patch.object(
+                bridge_with_pchk, "ensure_device_complete", return_value=module
+            ),
+            patch("lcn2mqtt.bridge.dispatch_input", return_value=iter([cancel_only])),
+        ):
+            await bridge_with_pchk._dispatch_input(inp)
+
+        mock_handle.cancel.assert_called_once()
+        assert (
+            f"{bridge_with_pchk._addr_prefix(addr)}/motor/outputs/state"
+            not in bridge_with_pchk._deferred_timers
+        )
+
+
+# ---------------------------------------------------------------------------
+# Deferred publish (_fire_deferred)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestDeferredMessages:
+    """Tests for the generic deferred MQTT message mechanism."""
+
+    async def test_fire_deferred_publishes_message(self, bridge: Bridge) -> None:
+        """_fire_deferred publishes the given topic and payload."""
+        bridge._mqtt = AsyncMock()
+        prefix = "lcntest/module/0/7"
+
+        await bridge._publish(f"{prefix}/motor/outputs/state", "open")
+
+        bridge._mqtt.publish.assert_awaited_once()
+        assert bridge._mqtt.publish.call_args[0][0] == f"{prefix}/motor/outputs/state"
+        assert bridge._mqtt.publish.call_args[1]["payload"] == "open"
+
+    async def test_deferred_timer_fires_end_to_end(self, bridge: Bridge) -> None:
+        """End-to-end: a DeferredMqttMessage with a short delay fires and publishes."""
+        bridge._mqtt = AsyncMock()
+        addr = LcnAddr(0, 7, False)
+        module = Device(address=addr)
+        inp = MagicMock(spec=inputs.ModStatusOutput)
+        inp.physical_source_addr = addr
+        bridge._pchk = MagicMock()
+        bridge._pchk.physical_to_logical = lambda a: a
+
+        deferred = DeferredMqttMessage(topic="test/topic", payload="fired", delay=0.01)
+
+        with (
+            patch.object(bridge, "ensure_device_complete", return_value=module),
+            patch("lcn2mqtt.bridge.dispatch_input", return_value=iter([deferred])),
+        ):
+            await bridge._dispatch_input(inp)
+
+        await asyncio.sleep(0.1)  # wait for timer to fire
+
+        bridge._mqtt.publish.assert_awaited()
+        assert bridge._mqtt.publish.call_args[1]["payload"] == "fired"
+
+    async def test_new_deferred_replaces_existing_timer(self, bridge: Bridge) -> None:
+        """Dispatching a new DeferredMqttMessage for the same topic cancels the old timer."""
+        bridge._mqtt = AsyncMock()
+        addr = LcnAddr(0, 7, False)
+        module = Device(address=addr)
+        inp = MagicMock(spec=inputs.ModStatusOutput)
+        inp.physical_source_addr = addr
+        bridge._pchk = MagicMock()
+        bridge._pchk.physical_to_logical = lambda a: a
+
+        deferred = DeferredMqttMessage(topic="test/topic", payload="value", delay=10.0)
+
+        with (
+            patch.object(bridge, "ensure_device_complete", return_value=module),
+            patch("lcn2mqtt.bridge.dispatch_input", return_value=iter([deferred])),
+        ):
+            await bridge._dispatch_input(inp)
+
+        first_handle = bridge._deferred_timers.get(
+            f"{bridge._addr_prefix(addr)}/test/topic"
+        )
+        assert first_handle is not None
+
+        deferred2 = DeferredMqttMessage(
+            topic="test/topic", payload="value2", delay=10.0
+        )
+        with (
+            patch.object(bridge, "ensure_device_complete", return_value=module),
+            patch("lcn2mqtt.bridge.dispatch_input", return_value=iter([deferred2])),
+        ):
+            await bridge._dispatch_input(inp)
+
+        second_handle = bridge._deferred_timers.get(
+            f"{bridge._addr_prefix(addr)}/test/topic"
+        )
+        assert second_handle is not None
+        assert second_handle is not first_handle
+        assert second_handle is not first_handle

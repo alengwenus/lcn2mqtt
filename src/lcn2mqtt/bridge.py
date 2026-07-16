@@ -16,7 +16,7 @@ from pypck.lcn_addr import LcnAddr
 
 from .discovery import DiscoveryManager
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
-from .helpers import singleflight
+from .helpers import DeferredMqttMessage, singleflight
 from .models.config import AppConfig, DeviceConfig
 from .models.device import ModuleSerials
 
@@ -40,6 +40,8 @@ class Bridge:
         self.devices: dict[LcnAddr, DeviceConfig] = config.devices
         self._discovery: DiscoveryManager | None = None
         self._on_lcn_input_tasks: set[asyncio.Task[None]] = set()
+        # Tracks pending deferred publish timers keyed by (LcnAddr, cancel_key).
+        self._deferred_timers: dict[str, asyncio.TimerHandle] = {}
 
     # ---------- topic helpers ----------
 
@@ -270,12 +272,29 @@ class Bridge:
             prefix = self._addr_prefix(lcn_addr)
 
             if isinstance(inp, inputs.ModInput):
-                for message in dispatch_input(inp, module=module):
-                    await self._publish(f"{prefix}/{message.topic}", message.payload)
+                for item in dispatch_input(inp, module=module):
+                    if isinstance(item, DeferredMqttMessage):
+                        self._publish_deferred(prefix, item)
+                    else:
+                        await self._publish(f"{prefix}/{item.topic}", item.payload)
             # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
             _LOG.exception("Error dispatching LCN input %s", type(inp).__name__)
+
+    def _publish_deferred(self, prefix: str, item: DeferredMqttMessage) -> None:
+        key = f"{prefix}/{item.topic}"
+        old = self._deferred_timers.pop(key, None)
+        if old is not None:
+            old.cancel()
+        if item.delay is not None:
+            loop = asyncio.get_running_loop()
+            self._deferred_timers[key] = loop.call_later(
+                item.delay,
+                lambda key=key, payload=item.payload: (  # type: ignore[misc]
+                    asyncio.get_running_loop().create_task(self._publish(key, payload))
+                ),
+            )
 
     # ---------- MQTT -> LCN ----------
 
