@@ -14,7 +14,7 @@ from pypck.inputs import Input
 from pypck.lcn_addr import LcnAddr
 
 from lcn2mqtt.bridge import Bridge
-from lcn2mqtt.helpers import DeferredMqttMessage, MqttMessage
+from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import DeviceConfig
 from lcn2mqtt.models.device import Device
 
@@ -295,20 +295,22 @@ class TestDispatchInput:
             with patch("lcn2mqtt.bridge.dispatch_input", side_effect=fake_dispatch):
                 await bridge_with_pchk._dispatch_input(inp)
 
+            await asyncio.sleep(0)  # allow all pending tasks to run
+
             mock_publish.assert_awaited_once_with(
-                f"{bridge_with_pchk._addr_prefix(addr)}/output/1/state", "on"
+                f"{bridge_with_pchk._addr_prefix(addr)}/output/1/state", "on", delay=0.0
             )
 
     async def test_deferred_message_from_dispatch_is_scheduled(
         self, bridge_with_pchk: Bridge
     ) -> None:
-        """DeferredMqttMessage yielded by dispatch_input is registered in _deferred_timers."""
+        """MqttMessage yielded by dispatch_input is registered in _deferred_timers."""
         addr = LcnAddr(0, 7, False)
         module = Device(address=addr)
         inp = MagicMock(spec=inputs.ModStatusOutput)
         inp.physical_source_addr = addr
 
-        deferred = DeferredMqttMessage(
+        deferred = MqttMessage(
             topic="motor/outputs/state",
             payload="open",
             delay=10.0,
@@ -328,7 +330,7 @@ class TestDispatchInput:
     async def test_cancel_only_deferred_removes_existing_timer(
         self, bridge_with_pchk: Bridge
     ) -> None:
-        """DeferredMqttMessage with delay=None cancels the existing timer and does not reschedule."""
+        """MqttMessage with delay=None cancels the existing timer and does not reschedule."""
         addr = LcnAddr(0, 7, False)
         module = Device(address=addr)
         inp = MagicMock(spec=inputs.ModStatusOutput)
@@ -339,9 +341,7 @@ class TestDispatchInput:
             f"{bridge_with_pchk._addr_prefix(addr)}/motor/outputs/state"
         ] = mock_handle
 
-        cancel_only = DeferredMqttMessage(
-            topic="motor/outputs/state", payload=None
-        )  # delay=None
+        cancel_only = MqttMessage(topic="motor/outputs/state", payload=None, delay=None)
 
         with (
             patch.object(
@@ -349,7 +349,9 @@ class TestDispatchInput:
             ),
             patch("lcn2mqtt.bridge.dispatch_input", return_value=iter([cancel_only])),
         ):
-            await bridge_with_pchk._dispatch_input(inp)
+            await bridge_with_pchk._dispatch_input(
+                inp
+            )  # allow all pending tasks to run
 
         mock_handle.cancel.assert_called_once()
         assert (
@@ -379,7 +381,7 @@ class TestDeferredMessages:
         assert bridge._mqtt.publish.call_args[1]["payload"] == "open"
 
     async def test_deferred_timer_fires_end_to_end(self, bridge: Bridge) -> None:
-        """End-to-end: a DeferredMqttMessage with a short delay fires and publishes."""
+        """End-to-end: a MqttMessage with a short delay fires and publishes."""
         bridge._mqtt = AsyncMock()
         addr = LcnAddr(0, 7, False)
         module = Device(address=addr)
@@ -388,7 +390,7 @@ class TestDeferredMessages:
         bridge._pchk = MagicMock()
         bridge._pchk.physical_to_logical = lambda a: a
 
-        deferred = DeferredMqttMessage(topic="test/topic", payload="fired", delay=0.01)
+        deferred = MqttMessage(topic="test/topic", payload="fired", delay=0.01)
 
         with (
             patch.object(bridge, "ensure_device_complete", return_value=module),
@@ -402,7 +404,7 @@ class TestDeferredMessages:
         assert bridge._mqtt.publish.call_args[1]["payload"] == "fired"
 
     async def test_new_deferred_replaces_existing_timer(self, bridge: Bridge) -> None:
-        """Dispatching a new DeferredMqttMessage for the same topic cancels the old timer."""
+        """Dispatching a new MqttMessage for the same topic cancels the old timer."""
         bridge._mqtt = AsyncMock()
         addr = LcnAddr(0, 7, False)
         module = Device(address=addr)
@@ -411,7 +413,7 @@ class TestDeferredMessages:
         bridge._pchk = MagicMock()
         bridge._pchk.physical_to_logical = lambda a: a
 
-        deferred = DeferredMqttMessage(topic="test/topic", payload="value", delay=10.0)
+        deferred = MqttMessage(topic="test/topic", payload="value", delay=10.0)
 
         with (
             patch.object(bridge, "ensure_device_complete", return_value=module),
@@ -424,9 +426,7 @@ class TestDeferredMessages:
         )
         assert first_handle is not None
 
-        deferred2 = DeferredMqttMessage(
-            topic="test/topic", payload="value2", delay=10.0
-        )
+        deferred2 = MqttMessage(topic="test/topic", payload="value2", delay=10.0)
         with (
             patch.object(bridge, "ensure_device_complete", return_value=module),
             patch("lcn2mqtt.bridge.dispatch_input", return_value=iter([deferred2])),

@@ -18,7 +18,7 @@ from lcn2mqtt.handlers.motor import (
     handle_motor_relays_status,
     handle_retained_state,
 )
-from lcn2mqtt.helpers import DeferredMqttMessage, MqttMessage
+from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device, MotorState
 
@@ -313,9 +313,7 @@ class TestHandleMotorOutputsPositionModuleStatus:
             module.motor_outputs.stop_timeout = stop_timeout_s
         return module
 
-    def _run(
-        self, module: Device, position: float
-    ) -> list[MqttMessage | DeferredMqttMessage]:
+    def _run(self, module: Device, position: float) -> list[MqttMessage]:
         """Run the handler for motor 4 (outputs) at the given position."""
         inp = inputs.ModStatusMotorPositionModule(module.address, 3, position)
         return list(handle_motor_outputs_position_module_status(inp, module=module))
@@ -324,7 +322,7 @@ class TestHandleMotorOutputsPositionModuleStatus:
         """DeferredMqttMessage is yielded when position is increasing (OPENING)."""
         self._make_module(module, old_position=30.0)
         items = self._run(module, 50.0)
-        deferred = next((i for i in items if isinstance(i, DeferredMqttMessage)), None)
+        deferred = next((item for item in items if item.delay not in (None, 0.0)), None)
         assert deferred is not None
         assert deferred.topic == "motor/outputs/state"
         assert deferred.payload == MotorState.OPEN.value
@@ -334,7 +332,7 @@ class TestHandleMotorOutputsPositionModuleStatus:
         """Cancel-only DeferredMqttMessage is yielded when position == 100 (OPEN)."""
         self._make_module(module, old_position=80.0)
         items = self._run(module, 100.0)
-        deferred = next((i for i in items if isinstance(i, DeferredMqttMessage)), None)
+        deferred = next((item for item in items if item.delay is None), None)
         assert deferred is not None
         assert deferred.topic == "motor/outputs/state"
         assert deferred.delay is None  # cancel only
@@ -343,7 +341,7 @@ class TestHandleMotorOutputsPositionModuleStatus:
         """Cancel-only DeferredMqttMessage is yielded when position == 0 (CLOSED)."""
         self._make_module(module, old_position=20.0)
         items = self._run(module, 0.0)
-        deferred = next((i for i in items if isinstance(i, DeferredMqttMessage)), None)
+        deferred = next((item for item in items if item.delay is None), None)
         assert deferred is not None
         assert deferred.delay is None
 
@@ -353,7 +351,7 @@ class TestHandleMotorOutputsPositionModuleStatus:
         """No DeferredMqttMessage when direction cannot be determined (first update)."""
         self._make_module(module, old_position=None)
         items = self._run(module, 50.0)
-        assert not any(isinstance(i, DeferredMqttMessage) for i in items)
+        assert all(item.delay == 0.0 for item in items)
 
     def test_produce_returns_open_at_intermediate_position(
         self, module: Device
@@ -361,24 +359,18 @@ class TestHandleMotorOutputsPositionModuleStatus:
         """Payload is OPEN when motor stops at an intermediate position (> 0)."""
         self._make_module(module, old_position=30.0)
         items = self._run(module, 50.0)
-        deferred = next(i for i in items if isinstance(i, DeferredMqttMessage))
+        deferred = next(item for item in items if item.delay not in (None, 0.0))
         assert deferred.payload == MotorState.OPEN.value
 
     def test_produce_returns_closed_at_position_zero(self, module: Device) -> None:
         """Cancel-only DeferredMqttMessage is yielded when motor reaches position 0 (CLOSED)."""
         self._make_module(module, old_position=20.0)
         items = self._run(module, 0.0)
-        deferred = next(i for i in items if isinstance(i, DeferredMqttMessage))
+        deferred = next(item for item in items if item.delay is None)
         # position==0 triggers cancel-only; the immediate MqttMessage says "closed"
         assert deferred.delay is None
-        state_msg = next(
-            m
-            for m in items
-            if isinstance(m, MqttMessage)
-            and not isinstance(m, DeferredMqttMessage)
-            and m.topic == "motor/outputs/state"
-        )
-        assert state_msg.payload == MotorState.CLOSED.value
+        assert deferred.topic == "motor/outputs/state"
+        assert deferred.payload == MotorState.CLOSED.value
 
     def test_produce_returns_none_when_already_resolved(self, module: Device) -> None:
         """When timer would fire but state is already resolved, payload is OPEN (no guard)."""
@@ -386,7 +378,7 @@ class TestHandleMotorOutputsPositionModuleStatus:
         # Redundant publishes are harmless in MQTT.
         self._make_module(module, old_position=30.0)
         items = self._run(module, 50.0)
-        deferred = next(i for i in items if isinstance(i, DeferredMqttMessage))
+        deferred = next(item for item in items if item.delay not in (None, 0.0))
         # Payload is fixed regardless of current state
         assert deferred.payload == MotorState.OPEN.value
 
@@ -394,12 +386,12 @@ class TestHandleMotorOutputsPositionModuleStatus:
         """Custom stop_timeout_s is passed as the DeferredMqttMessage delay."""
         self._make_module(module, old_position=30.0, stop_timeout_s=15.0)
         items = self._run(module, 50.0)
-        deferred = next(i for i in items if isinstance(i, DeferredMqttMessage))
+        deferred = next(item for item in items if item.delay not in (None, 0.0))
         assert deferred.delay == 15.0
 
     def test_default_timeout_is_5s_for_positioning_mode(self, module: Device) -> None:
         """Default timeout for positioning mode is _STOP_TIMEOUT_POSITIONING (5 s)."""
         self._make_module(module, old_position=30.0)
         items = self._run(module, 50.0)
-        deferred = next(i for i in items if isinstance(i, DeferredMqttMessage))
+        deferred = next(item for item in items if item.delay not in (None, 0.0))
         assert deferred.delay == _STOP_TIMEOUT_POSITIONING

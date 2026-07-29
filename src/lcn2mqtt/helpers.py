@@ -9,22 +9,16 @@ from typing import Any
 
 @dataclass
 class MqttMessage:
-    """Represents an MQTT message with a topic and payload."""
+    """Represents an MQTT message with a topic and payload.
 
-    topic: str
-    payload: str | None
-
-
-@dataclass
-class DeferredMqttMessage(MqttMessage):
-    """An MqttMessage that is published after a delay.
-
-    The bridge uses (module_address, topic) as an implicit cancel key: scheduling a new
-    DeferredMqttMessage for the same topic automatically cancels the previous pending one.
+    If delay is set, the message will be published after the specified delay in seconds.
+    Scheduling a new MqttMessage for the same topic automatically cancels the previous pending one.
     delay=None means cancel only – do not reschedule.
     """
 
-    delay: float | None = None
+    topic: str
+    payload: str | None
+    delay: float | None = 0.0
 
 
 def singleflight[**P, R](

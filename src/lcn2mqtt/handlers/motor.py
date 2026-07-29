@@ -8,7 +8,7 @@ from typing import Any
 
 from pypck import inputs, lcn_defs
 
-from lcn2mqtt.helpers import DeferredMqttMessage, MqttMessage
+from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 
 from ..models.device import Device, MotorState
@@ -219,7 +219,7 @@ def handle_motor_outputs_position_module_status(
     # Schedule or cancel the inactivity stop timer.
     # In positioning mode any intermediate stop means "not fully closed" = OPEN.
     if new_state in (MotorState.OPENING, MotorState.CLOSING):
-        yield DeferredMqttMessage(
+        yield MqttMessage(
             topic="motor/outputs/state",
             payload=MotorState.OPEN.value,
             delay=(
@@ -230,7 +230,9 @@ def handle_motor_outputs_position_module_status(
         )
     else:
         # Motor reached end position (OPEN or CLOSED) – cancel any pending stop timer.
-        yield DeferredMqttMessage(topic="motor/outputs/state", payload=new_state.value)
+        yield MqttMessage(
+            topic="motor/outputs/state", payload=new_state.value, delay=None
+        )
 
 
 @mqtt_handler("motor/outputs/set", "motor/outputs/set_position")
