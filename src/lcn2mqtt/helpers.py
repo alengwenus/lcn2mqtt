@@ -9,10 +9,16 @@ from typing import Any
 
 @dataclass
 class MqttMessage:
-    """Represents an MQTT message with a topic and payload."""
+    """Represents an MQTT message with a topic and payload.
+
+    If delay is set, the message will be published after the specified delay in seconds.
+    Scheduling a new MqttMessage for the same topic automatically cancels the previous pending one.
+    delay=None means cancel only – do not reschedule.
+    """
 
     topic: str
     payload: str | None
+    delay: float | None = 0.0
 
 
 def singleflight[**P, R](

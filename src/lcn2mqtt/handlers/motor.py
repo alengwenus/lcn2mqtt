@@ -18,6 +18,10 @@ _LOG = logging.getLogger(__name__)
 
 Publish = Callable[[str, Any], Awaitable[None]]
 
+# Default inactivity timeout for positioning mode. Position updates arrive every ~2 s;
+# 5 s without an update means the motor has stopped.
+_STOP_TIMEOUT_POSITIONING = 5.0  # seconds
+
 
 # ---------- Motors via relays ----------
 
@@ -148,19 +152,14 @@ def handle_motor_outputs_status(
     inp: inputs.ModStatusOutput, module: Device
 ) -> Generator[MqttMessage]:
     """Handle a motor position status input, update the module state, and publish any changes."""
-    state = MotorState.UNKNOWN
+    # In MODULE positioning mode the output-status is unreliable and arrives with a large delay;
+    # state is tracked accurately via ModStatusMotorPositionModule updates instead.
     if module.motor_outputs.positioning_mode == lcn_defs.MotorPositioningMode.MODULE:
-        if inp.get_percent() == 0:
-            # motor was stopped (probably during motion)
-            if module.motor_outputs.state not in (
-                MotorState.OPEN,
-                MotorState.CLOSED,
-            ):
-                state = MotorState.OPEN
+        return
 
-    # No positioning mode: We can only assume the motor state based on the module's outputs state.
-    # Motor is on:
-    elif inp.get_percent() > 0:  # motor is on
+    state = MotorState.UNKNOWN
+    # No positioning mode: derive state from the output port and direction.
+    if inp.get_percent() > 0:  # motor is on
         if inp.get_output_id() == lcn_defs.OutputPort.OUTPUTUP.value:
             state = MotorState.OPENING
         elif inp.get_output_id() == lcn_defs.OutputPort.OUTPUTDOWN.value:
@@ -204,13 +203,36 @@ def handle_motor_outputs_position_module_status(
         yield MqttMessage("motor/outputs/position", f"{position}")
 
     if position == 100:
-        yield MqttMessage("motor/outputs/state", MotorState.OPEN.value)
+        new_state = MotorState.OPEN
     elif position == 0:
-        yield MqttMessage("motor/outputs/state", MotorState.CLOSED.value)
+        new_state = MotorState.CLOSED
     elif old_position is not None and position > old_position:
-        yield MqttMessage("motor/outputs/state", MotorState.OPENING.value)
+        new_state = MotorState.OPENING
     elif old_position is not None and position < old_position:
-        yield MqttMessage("motor/outputs/state", MotorState.CLOSING.value)
+        new_state = MotorState.CLOSING
+    else:
+        return  # direction not yet determinable (first update)
+
+    if module.motor_outputs.update_state(new_state):
+        yield MqttMessage("motor/outputs/state", new_state.value)
+
+    # Schedule or cancel the inactivity stop timer.
+    # In positioning mode any intermediate stop means "not fully closed" = OPEN.
+    if new_state in (MotorState.OPENING, MotorState.CLOSING):
+        yield MqttMessage(
+            topic="motor/outputs/state",
+            payload=MotorState.OPEN.value,
+            delay=(
+                module.motor_outputs.stop_timeout
+                if module.motor_outputs.stop_timeout is not None
+                else _STOP_TIMEOUT_POSITIONING
+            ),
+        )
+    else:
+        # Motor reached end position (OPEN or CLOSED) – cancel any pending stop timer.
+        yield MqttMessage(
+            topic="motor/outputs/state", payload=new_state.value, delay=None
+        )
 
 
 @mqtt_handler("motor/outputs/set", "motor/outputs/set_position")
