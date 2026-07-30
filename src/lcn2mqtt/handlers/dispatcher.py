@@ -3,13 +3,15 @@
 import re
 from collections.abc import Awaitable, Callable, Generator
 from functools import wraps
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pypck import inputs
 
 from lcn2mqtt.helpers import MqttMessage
-from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device
+
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
 
 _MQTT_HANDLER_REGISTRY: list[tuple[re.Pattern[str], Callable[..., Awaitable[Any]]]] = []
 _INPUT_HANDLER_REGISTRY: list[
@@ -48,7 +50,7 @@ async def dispatch_mqtt(
     topic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
     *args: Any,
     **kwargs: Any,
 ) -> bool:
@@ -57,7 +59,7 @@ async def dispatch_mqtt(
     for pattern, func in _MQTT_HANDLER_REGISTRY:
         match = pattern.match(topic)
         if match:
-            await func(topic, payload, module, config, *args, **kwargs)
+            await func(topic, payload, module, bridge, *args, **kwargs)
             success = True
     return success
 

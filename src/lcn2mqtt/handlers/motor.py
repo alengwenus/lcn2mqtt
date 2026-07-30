@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable, Generator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.helpers import MqttMessage
-from lcn2mqtt.models.config import AppConfig
 
 from ..models.device import Device, MotorState
 from .dispatcher import input_handler, mqtt_handler
@@ -21,6 +20,10 @@ Publish = Callable[[str, Any], Awaitable[None]]
 # Default inactivity timeout for positioning mode. Position updates arrive every ~2 s;
 # 5 s without an update means the motor has stopped.
 _STOP_TIMEOUT_POSITIONING = 5.0  # seconds
+
+
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
 
 
 # ---------- Motors via relays ----------
@@ -92,7 +95,7 @@ async def handle_motor_relays_set(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
@@ -240,7 +243,7 @@ async def handle_motor_outputs_set(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
@@ -287,10 +290,10 @@ async def handle_motor_outputs_set(
 
 @mqtt_handler("motor/+/state", "motor/+/position")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a request for the retained state of a motor."""
-    if not config.retained_broker_states:
+    if not bridge.config.retained_broker_states:
         return
     parts = subtopic.split("/")
     try:

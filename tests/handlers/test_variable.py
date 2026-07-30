@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pypck import inputs, lcn_defs
 
+from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.variable import (
     handle_retained_setpoint_state,
     handle_retained_threshold_state,
@@ -125,7 +126,7 @@ class TestHandleRetainedVariableState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         unit: lcn_defs.VarUnit,
         payload: str,
         expected_state: float,
@@ -134,7 +135,7 @@ class TestHandleRetainedVariableState:
         module.variable1.unit = unit.name.lower()  # type: ignore[assignment]
         assert module.variable1.value is None
         await handle_retained_variable_state(
-            "variable/1/state", payload, module, config
+            "variable/1/state", payload, module, bridge
         )
         expected_var_value = lcn_defs.VarValue.from_var_unit(expected_state, unit, True)
         assert module.variable1.value == expected_var_value.to_native()
@@ -149,14 +150,14 @@ class TestHandleRetainedVariableState:
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
         payload: str,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_variable_state(
-                "variable/1/state", payload, module, config
+                "variable/1/state", payload, module, bridge
             )
         assert any(
             "Invalid variable state payload" in record.message
@@ -314,7 +315,7 @@ class TestHandleRetainedSetpointState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         unit: lcn_defs.VarUnit,
         payload: str,
         expected_state: float,
@@ -323,7 +324,7 @@ class TestHandleRetainedSetpointState:
         module.setpoint1.unit = unit.name.lower()  # type: ignore[assignment]
         assert module.setpoint1.value is None
         await handle_retained_setpoint_state(
-            "setpoint/1/state", payload, module, config
+            "setpoint/1/state", payload, module, bridge
         )
         expected_var_value = lcn_defs.VarValue.from_var_unit(expected_state, unit, True)
         assert module.setpoint1.value == expected_var_value.to_native()
@@ -338,14 +339,14 @@ class TestHandleRetainedSetpointState:
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
         payload: str,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_setpoint_state(
-                "setpoint/1/state", payload, module, config
+                "setpoint/1/state", payload, module, bridge
             )
         assert any(
             "Invalid setpoint state payload" in record.message
@@ -366,27 +367,27 @@ class TestHandleRetainedSetpointLocked:
     async def test_retained_locked_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: bool,
     ) -> None:
         """Sending a retained locked command updates the module's setpoint locked state."""
         assert module.setpoint1.locked is None
         await handle_retained_setpoint_state(
-            "setpoint/1/locked", payload, module, config
+            "setpoint/1/locked", payload, module, bridge
         )
         assert module.setpoint1.locked == expected_state
 
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_setpoint_state(
-                "setpoint/1/locked", "unknown", module, config
+                "setpoint/1/locked", "unknown", module, bridge
             )
         assert any(
             "Invalid setpoint locked payload" in record.message
@@ -542,7 +543,7 @@ class TestHandleRetainedThresholdState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         unit: lcn_defs.VarUnit,
         payload: str,
         expected_state: float,
@@ -551,7 +552,7 @@ class TestHandleRetainedThresholdState:
         module.threshold11.unit = unit.name.lower()  # type: ignore[assignment]
         assert module.threshold11.value is None
         await handle_retained_threshold_state(
-            "threshold/1/1/state", payload, module, config
+            "threshold/1/1/state", payload, module, bridge
         )
         expected_var_value = lcn_defs.VarValue.from_var_unit(expected_state, unit, True)
         assert module.threshold11.value == expected_var_value.to_native()
@@ -566,14 +567,14 @@ class TestHandleRetainedThresholdState:
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
         payload: str,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_threshold_state(
-                "threshold/1/1/state", payload, module, config
+                "threshold/1/1/state", payload, module, bridge
             )
         assert any(
             "Invalid threshold state payload" in record.message
@@ -594,27 +595,27 @@ class TestHandleRetainedThresholdLocked:
     async def test_retained_locked_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: bool,
     ) -> None:
         """Sending a retained locked command updates the module's threshold locked state."""
         assert module.threshold11.locked is None
         await handle_retained_threshold_state(
-            "threshold/1/1/locked", payload, module, config
+            "threshold/1/1/locked", payload, module, bridge
         )
         assert module.threshold11.locked == expected_state
 
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_threshold_state(
-                "threshold/1/1/locked", "unknown", module, config
+                "threshold/1/1/locked", "unknown", module, bridge
             )
         assert any(
             "Invalid threshold locked payload" in record.message

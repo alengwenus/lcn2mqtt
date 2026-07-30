@@ -7,8 +7,8 @@ import logging
 import pytest
 from pypck import inputs
 
+from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.binsensor import handle_binsensor_input, handle_retained_state
-from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device
 
 
@@ -74,21 +74,21 @@ class TestHandleRetainedState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: bool,
     ) -> None:
         """Sending a retained state command updates the module's binsensor state."""
         assert module.binsensor1 is None
-        await handle_retained_state("binsensor/1/state", payload, module, config)
+        await handle_retained_state("binsensor/1/state", payload, module, bridge)
         assert module.binsensor1 == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, bridge: Bridge, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
-            await handle_retained_state("binsensor/1/state", "unknown", module, config)
+            await handle_retained_state("binsensor/1/state", "unknown", module, bridge)
         assert any(
             "Invalid binary sensor state payload" in record.message
             for record in caplog.records

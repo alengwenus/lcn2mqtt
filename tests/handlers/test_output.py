@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pypck import inputs
 
+from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.output import (
     handle_input,
     handle_retained_state,
@@ -237,21 +238,21 @@ class TestHandleRetainedState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: OutputState,
     ) -> None:
         """Sending a retained state command updates the module's output state."""
         assert module.output1.state is None
-        await handle_retained_state("output/1/state", payload, module, config)
+        await handle_retained_state("output/1/state", payload, module, bridge)
         assert module.output1.state == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, bridge: Bridge, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
-            await handle_retained_state("output/1/state", "unknown", module, config)
+            await handle_retained_state("output/1/state", "unknown", module, bridge)
         assert any(
             "Invalid output state payload" in record.message
             for record in caplog.records
@@ -272,13 +273,13 @@ class TestHandleRetainedBrightness:
     async def test_retained_brightness_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_brightness: float,
     ) -> None:
         """Sending a retained brightness command updates the module's output brightness."""
         assert module.output1.brightness is None
-        await handle_retained_state("output/1/brightness", payload, module, config)
+        await handle_retained_state("output/1/brightness", payload, module, bridge)
         assert module.output1.brightness == expected_brightness
 
     @pytest.mark.parametrize(
@@ -292,13 +293,13 @@ class TestHandleRetainedBrightness:
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
         payload: str,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
-            await handle_retained_state("output/1/brightness", payload, module, config)
+            await handle_retained_state("output/1/brightness", payload, module, bridge)
         assert any(
             "Invalid output brightness payload" in record.message
             for record in caplog.records

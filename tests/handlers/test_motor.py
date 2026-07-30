@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pypck import inputs, lcn_defs
 
+from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.motor import (
     _STOP_TIMEOUT_POSITIONING,
     handle_motor_outputs_position_module_status,
@@ -271,7 +272,7 @@ class TestHandleRetainedState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: MotorState,
         motor: str,
@@ -280,15 +281,15 @@ class TestHandleRetainedState:
         """Sending a retained state command updates the module's motor state."""
         motor_obj = getattr(module, motor_attr)
         assert motor_obj.state is None
-        await handle_retained_state(f"motor/{motor}/state", payload, module, config)
+        await handle_retained_state(f"motor/{motor}/state", payload, module, bridge)
         assert motor_obj.state == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, bridge: Bridge, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
-            await handle_retained_state("motor/1/state", "other", module, config)
+            await handle_retained_state("motor/1/state", "other", module, bridge)
         assert any(
             "Invalid motor state payload" in record.message for record in caplog.records
         )

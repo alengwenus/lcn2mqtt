@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from pypck import inputs, lcn_defs
 
+from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.relay import (
     handle_relay_status,
     handle_retained_state,
@@ -124,21 +125,21 @@ class TestHandleRetainedState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: RelayState,
     ) -> None:
         """Sending a retained state command updates the module's relay state."""
         assert module.relay1 is None
-        await handle_retained_state("relay/1/state", payload, module, config)
+        await handle_retained_state("relay/1/state", payload, module, bridge)
         assert module.relay1 == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, bridge: Bridge, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
-            await handle_retained_state("relay/1/state", "unknown", module, config)
+            await handle_retained_state("relay/1/state", "unknown", module, bridge)
         assert any(
             "Invalid relay state payload" in record.message for record in caplog.records
         )

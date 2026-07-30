@@ -334,4 +334,5 @@ class Bridge:
             logical_source_address
         )  # ensure module exists and is complete before handling input
 
-        await dispatch_mqtt(subtopic, payload, module, self.config)
+        # await dispatch_mqtt(subtopic, payload, module, self.config)
+        await dispatch_mqtt(subtopic, payload, module, self)

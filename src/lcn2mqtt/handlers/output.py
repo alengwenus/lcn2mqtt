@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable, Generator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
-from lcn2mqtt.models.config import AppConfig
 
 from ..models.device import Device, Output, OutputState
 
@@ -20,6 +19,10 @@ _LOG = logging.getLogger(__name__)
 Publish = Callable[[str, Any], Awaitable[None]]
 
 _DEFAULT_TRANSITION_MS = 500
+
+
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
 
 
 @input_handler(inputs.ModStatusOutput)
@@ -48,7 +51,7 @@ async def handle_set_brightness(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -77,7 +80,7 @@ async def handle_set_transition(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -106,7 +109,7 @@ async def handle_set(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -150,10 +153,10 @@ async def handle_set(
 
 @mqtt_handler("output/+/state", "output/+/brightness")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a request for the retained state of a relay."""
-    if not config.retained_broker_states:
+    if not bridge.config.retained_broker_states:
         return
     parts = subtopic.split("/")
     try:
