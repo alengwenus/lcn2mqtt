@@ -78,3 +78,34 @@ async def handle_retained_state(
     except ValueError:
         _LOG.warning("Invalid led state payload %r", payload)
         return
+
+
+@mqtt_handler("led/+/get", "led/get")
+async def handle_get_command(
+    subtopic: str, payload: str, module: Device, bridge: Bridge
+) -> None:
+    """Handle a command to get the current state of an LED."""
+    device_connection = module.device_connection
+    if device_connection is None:
+        return
+    parts = subtopic.split("/")
+    try:
+        if parts[1] == "get":
+            leds = [lcn_defs.LedPort(i) for i in range(12)]
+        else:
+            idx = int(parts[1])
+            leds = [lcn_defs.LedPort(idx - 1)]
+    except ValueError:
+        return
+
+    result_input = await device_connection.request_status_leds_and_logic_ops()
+    if result_input is None:
+        return
+
+    # Publish the current state of the requested LED
+    for led in leds:
+        led_state = result_input.states_led[led.value]
+        bridge.publish(
+            module.prefix,
+            MqttMessage(f"led/{led.value + 1}/state", led_state.name.lower()),
+        )
