@@ -156,7 +156,8 @@ class Bridge:
         )
         _LOG.debug("Dispatched: %s = %r", topic, payload)
 
-    def _publish_deferred(self, prefix: str, item: MqttMessage) -> None:
+    def publish(self, prefix: str, item: MqttMessage) -> None:
+        """Publish a message to an MQTT topic, optionally deferring it."""
         key = f"{prefix}/{item.topic}"
         old = self._deferred_timers.pop(key, None)
         if old is not None:
@@ -285,7 +286,7 @@ class Bridge:
 
             if isinstance(inp, inputs.ModInput):
                 for item in dispatch_input(inp, module=module):
-                    self._publish_deferred(prefix, item)
+                    self.publish(prefix, item)
             # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
