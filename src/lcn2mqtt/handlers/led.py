@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 from pypck import inputs, lcn_defs
@@ -22,14 +21,16 @@ if TYPE_CHECKING:
 
 @input_handler(inputs.ModStatusLedsAndLogicOps)
 def handle_input(
-    inp: inputs.ModStatusLedsAndLogicOps, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusLedsAndLogicOps, module: Device, bridge: Bridge
+) -> None:
     """Handle an LED status input, update the module state, and publish any changes."""
     states = [LedState(state.name.lower()) for state in inp.states_led]
     changed = module.update_leds(states)
     for idx, did_change in enumerate(changed, start=1):
         if did_change:
-            yield MqttMessage(f"led/{idx}/state", states[idx - 1].value)
+            bridge.publish(
+                module.prefix, MqttMessage(f"led/{idx}/state", states[idx - 1].value)
+            )
 
 
 @mqtt_handler("led/+/set")

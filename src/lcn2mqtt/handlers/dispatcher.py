@@ -83,10 +83,8 @@ def input_handler(
     return decorator
 
 
-def dispatch_input(
-    inp: inputs.Input, *args: Any, **kwargs: Any
-) -> Generator[MqttMessage]:
+def dispatch_input(inp: inputs.Input, *args: Any, **kwargs: Any) -> None:
     """Dispatch an input command to the appropriate handler."""
     for registered_inp, func in _INPUT_HANDLER_REGISTRY:
         if isinstance(inp, registered_inp):
-            yield from func(inp, *args, **kwargs)
+            func(inp, *args, **kwargs)

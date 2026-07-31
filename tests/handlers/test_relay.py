@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pypck import inputs, lcn_defs
@@ -15,6 +15,7 @@ from lcn2mqtt.handlers.relay import (
     handle_retained_state,
     handle_set,
 )
+from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device, RelayState
 
@@ -22,20 +23,32 @@ from lcn2mqtt.models.device import Device, RelayState
 class TestHandleRelayStatus:
     """Tests for the ModStatusRelays input handler."""
 
-    async def test_all_relays_reported_on_first_call(self, module: Device) -> None:
+    async def test_all_relays_reported_on_first_call(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """All 8 relays produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
-        messages = list(handle_relay_status(inp, module=module))
-        assert len(messages) == 8
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_relay_status(inp, module=module, bridge=bridge)
+        assert mock_publish.call_count == 8
 
-    async def test_changed_relays_produce_messages(self, module: Device) -> None:
+    async def test_changed_relays_produce_messages(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """Only relays whose state actually changed emit a message."""
         states = [True, False, True] + [False] * 5
         inp = inputs.ModStatusRelays(module.address, states)
-        messages = list(handle_relay_status(inp, module=module))
-        topics = {m.topic for m in messages}
-        assert "relay/1/state" in topics
-        assert "relay/3/state" in topics
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_relay_status(inp, module=module, bridge=bridge)
+
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("relay/1/state", "on", delay=0.0),
+        )
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("relay/3/state", "on", delay=0.0),
+        )
 
     @pytest.mark.parametrize(
         "state, expected_payload",
@@ -45,23 +58,26 @@ class TestHandleRelayStatus:
         ],
     )
     async def test_on_state_produces_on_payload(
-        self, module: Device, state: bool, expected_payload: str
+        self, module: Device, bridge: Bridge, state: bool, expected_payload: str
     ) -> None:
         """A relay set to True publishes 'on'."""
         inp = inputs.ModStatusRelays(module.address, [state] + [False] * 7)
-        messages = list(handle_relay_status(inp, module=module))
-        msg = next(
-            (message for message in messages if message.topic == "relay/1/state"), None
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_relay_status(inp, module=module, bridge=bridge)
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("relay/1/state", expected_payload, delay=0.0),
         )
-        assert msg is not None
-        assert msg.payload == expected_payload
 
-    async def test_no_change_produces_no_messages(self, module: Device) -> None:
+    async def test_no_change_produces_no_messages(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """No messages are emitted when all relay states are unchanged."""
         inp = inputs.ModStatusRelays(module.address, [True, False] + [False] * 6)
-        list(handle_relay_status(inp, module=module))
-        messages = list(handle_relay_status(inp, module=module))
-        assert messages == []
+        handle_relay_status(inp, module=module, bridge=bridge)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_relay_status(inp, module=module, bridge=bridge)
+        mock_publish.assert_not_called()
 
 
 class TestHandleRelaySet:

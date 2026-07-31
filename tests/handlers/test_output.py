@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pypck import inputs
@@ -17,6 +17,7 @@ from lcn2mqtt.handlers.output import (
     handle_set_brightness,
     handle_set_transition,
 )
+from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device, OutputState
 
@@ -33,31 +34,48 @@ class TestHandleOutputInput:
         ],
     )
     async def test_state_published_for_brightness(
-        self, module: Device, brightness: float, expected_state: OutputState
+        self,
+        module: Device,
+        bridge: Bridge,
+        brightness: float,
+        expected_state: OutputState,
     ) -> None:
         """The ON/OFF state is published based on the brightness value."""
         inp = inputs.ModStatusOutput(module.address, 0, brightness)
-        messages = list(handle_input(inp, module=module))
-        state_msg = next(
-            message for message in messages if message.topic == "output/1/state"
-        )
-        assert state_msg.payload == expected_state.name.lower()
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_input(inp, module=module, bridge=bridge)
 
-    async def test_brightness_message_always_published(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("output/1/state", expected_state.name.lower(), delay=0.0),
+        )
+
+    async def test_brightness_message_always_published(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A brightness message is always included regardless of state change."""
         inp = inputs.ModStatusOutput(module.address, 0, 50.0)
-        messages = list(handle_input(inp, module=module))
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_input(inp, module=module, bridge=bridge)
+
         brightness_msg = next(
-            message for message in messages if message.topic == "output/1/brightness"
+            call[0][1]
+            for call in mock_publish.call_args_list
+            if call[0][1].topic == "output/1/brightness"
         )
         assert brightness_msg.payload == "50.00"
 
-    async def test_no_state_message_when_state_unchanged(self, module: Device) -> None:
+    async def test_no_state_message_when_state_unchanged(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """No state message is emitted when the ON/OFF state does not change."""
         module.output1.state = OutputState.ON
         inp = inputs.ModStatusOutput(module.address, 0, 80.0)
-        messages = list(handle_input(inp, module=module))
-        assert not any(message.topic == "output/1/state" for message in messages)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_input(inp, module=module, bridge=bridge)
+        assert not any(
+            call[0][1].topic == "output/1/state" for call in mock_publish.call_args_list
+        )
 
     # async def test_no_brightness_message_when_brightness_unchanged(
     #     self, module: Device

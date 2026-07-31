@@ -49,13 +49,6 @@ class Bridge:
         """Return the base MQTT topic for this bridge."""
         return f"{self.config.mqtt.base_topic}"
 
-    def _addr_prefix(self, lcn_addr: LcnAddr) -> str:
-        """Return the MQTT topic prefix for the given LCN address."""
-        target_type = "group" if lcn_addr.is_group else "module"
-        return (
-            f"{self._base_topic()}/{target_type}/{lcn_addr.seg_id}/{lcn_addr.addr_id}"
-        )
-
     def _parse_addr_from_topic(self, topic: str) -> LcnAddr:
         """Parse the segment, address, and group flag from an MQTT topic, or return None if it can't be parsed."""
         base = self._base_topic()
@@ -282,11 +275,9 @@ class Bridge:
             module = await self.ensure_device_complete(
                 lcn_addr
             )  # ensure module exists and is complete before handling input
-            prefix = self._addr_prefix(lcn_addr)
 
             if isinstance(inp, inputs.ModInput):
-                for item in dispatch_input(inp, module=module):
-                    self.publish(prefix, item)
+                dispatch_input(inp, module=module, bridge=self)
             # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
@@ -335,5 +326,4 @@ class Bridge:
             logical_source_address
         )  # ensure module exists and is complete before handling input
 
-        # await dispatch_mqtt(subtopic, payload, module, self.config)
         await dispatch_mqtt(subtopic, payload, module, self)

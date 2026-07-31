@@ -1,7 +1,6 @@
 """Handler for LCN binary sensors."""
 
 import logging
-from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 from pypck import inputs
@@ -19,14 +18,17 @@ if TYPE_CHECKING:
 
 @input_handler(inputs.ModStatusBinSensors)
 def handle_binsensor_input(
-    inp: inputs.ModStatusBinSensors, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusBinSensors, module: Device, bridge: Bridge
+) -> None:
     """Handle binary sensors status input, update the module state, and publish any changes."""
     changed: list[bool] = module.update_binaries(inp.states)
     for idx, did_change in enumerate(changed, start=1):
         if did_change:
-            yield MqttMessage(
-                f"binsensor/{idx}/state", "on" if inp.states[idx - 1] else "off"
+            bridge.publish(
+                module.prefix,
+                MqttMessage(
+                    f"binsensor/{idx}/state", "on" if inp.states[idx - 1] else "off"
+                ),
             )
 
 

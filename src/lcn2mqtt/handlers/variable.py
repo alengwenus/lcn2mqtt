@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable
 from itertools import chain
 from typing import TYPE_CHECKING, Any
 
@@ -28,8 +28,8 @@ if TYPE_CHECKING:
 
 @input_handler(inputs.ModStatusVar)
 def handle_variable_input(
-    inp: inputs.ModStatusVar, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusVar, module: Device, bridge: Bridge
+) -> None:
     """Handle a variable status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.variables():
         return
@@ -41,7 +41,9 @@ def handle_variable_input(
     unit = variable.unit
     value_unit = inp.value.to_var_unit(unit)
     if variable.update_value(int(inp.value.to_native())):
-        yield MqttMessage(f"variable/{idx}/state", str(value_unit))
+        bridge.publish(
+            module.prefix, MqttMessage(f"variable/{idx}/state", str(value_unit))
+        )
 
 
 @mqtt_handler("variable/+/set", "variable/+/shift")
@@ -119,8 +121,8 @@ async def handle_retained_variable_state(
 
 @input_handler(inputs.ModStatusVar)
 def handle_setpoint_input(
-    inp: inputs.ModStatusVar, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusVar, module: Device, bridge: Bridge
+) -> None:
     """Handle a setpoint status input, update the module state, and publish any changes."""
     if inp.var not in lcn_defs.Var.set_points():
         return
@@ -132,11 +134,16 @@ def handle_setpoint_input(
     unit = variable.unit
     value_unit = inp.value.to_var_unit(unit, is_lockable_regulator_source=True)
     if variable.update_value(int(inp.value.to_native())):
-        yield MqttMessage(f"setpoint/{idx}/state", str(value_unit))
+        bridge.publish(
+            module.prefix, MqttMessage(f"setpoint/{idx}/state", str(value_unit))
+        )
     if variable.update_locked(inp.value.is_locked_regulator()):
-        yield MqttMessage(
-            f"setpoint/{idx}/locked",
-            "on" if inp.value.is_locked_regulator() else "off",
+        bridge.publish(
+            module.prefix,
+            MqttMessage(
+                f"setpoint/{idx}/locked",
+                "on" if inp.value.is_locked_regulator() else "off",
+            ),
         )
 
 
@@ -233,8 +240,8 @@ async def handle_retained_setpoint_state(
 
 @input_handler(inputs.ModStatusVar)
 def handle_threshold_input(
-    inp: inputs.ModStatusVar, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusVar, module: Device, bridge: Bridge
+) -> None:
     """Handle a threshold status input, update the module state, and publish any changes."""
     if inp.var not in list(chain.from_iterable(lcn_defs.Var.thresholds())):
         return
@@ -254,11 +261,17 @@ def handle_threshold_input(
     if threshold.update_value(
         int(inp.value.to_native())
     ):  # and (value_native != 0xFFFF):
-        yield MqttMessage(f"threshold/{register}/{idx}/state", str(value_unit))
+        bridge.publish(
+            module.prefix,
+            MqttMessage(f"threshold/{register}/{idx}/state", str(value_unit)),
+        )
     if threshold.update_locked(inp.value.is_locked_threshold()):
-        yield MqttMessage(
-            f"threshold/{register}/{idx}/locked",
-            "on" if inp.value.is_locked_threshold() else "off",
+        bridge.publish(
+            module.prefix,
+            MqttMessage(
+                f"threshold/{register}/{idx}/locked",
+                "on" if inp.value.is_locked_threshold() else "off",
+            ),
         )
 
 

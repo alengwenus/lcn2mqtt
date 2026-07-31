@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 from pypck import inputs, lcn_defs
@@ -24,13 +23,16 @@ if TYPE_CHECKING:
 def handle_relay_status(
     inp: inputs.ModStatusRelays,
     module: Device,
-) -> Generator[MqttMessage]:
-    """Handle a relay status input, update the module state, and return any changes."""
+    bridge: Bridge,
+) -> None:
+    """Handle a relay status input, update the module state, and publish any changes."""
     states = [RelayState.ON if s else RelayState.OFF for s in inp.states]
     changed = module.update_relays(states)
     for i, did_change in enumerate(changed, start=1):
         if did_change:
-            yield MqttMessage(f"relay/{i}/state", states[i - 1].value)
+            bridge.publish(
+                module.prefix, MqttMessage(f"relay/{i}/state", states[i - 1].value)
+            )
 
 
 @mqtt_handler("relay/+/set")

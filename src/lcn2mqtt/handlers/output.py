@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 @input_handler(inputs.ModStatusOutput)
-def handle_input(inp: inputs.ModStatusOutput, module: Device) -> Generator[MqttMessage]:
+def handle_input(inp: inputs.ModStatusOutput, module: Device, bridge: Bridge) -> None:
     """Handle an output status input, update the module state, and publish any changes."""
     idx = inp.output_id + 1  # 0-based -> 1-based
     output = getattr(module, f"output{idx}")
@@ -38,12 +38,19 @@ def handle_input(inp: inputs.ModStatusOutput, module: Device) -> Generator[MqttM
     brightness_changed = True  # Always publish brightness, even if unchanged, to ensure retained state is correct
 
     if state_changed:
-        yield MqttMessage(
-            f"output/{idx}/state",
-            output.state.value if output.state is not None else None,
+        bridge.publish(
+            module.prefix,
+            MqttMessage(
+                f"output/{idx}/state",
+                output.state.value if output.state is not None else None,
+            ),
         )
+
     if brightness_changed:
-        yield MqttMessage(f"output/{idx}/brightness", f"{inp.percent:.2f}")
+        bridge.publish(
+            module.prefix,
+            MqttMessage(f"output/{idx}/brightness", f"{inp.percent:.2f}"),
+        )
 
 
 @mqtt_handler("output/+/set_brightness")
