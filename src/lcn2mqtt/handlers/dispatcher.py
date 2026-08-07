@@ -1,22 +1,19 @@
 """Dispatcher for handling MQTT commands and routing them to the appropriate handlers."""
 
 import re
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 from pypck import inputs
 
-from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.device import Device
 
 if TYPE_CHECKING:
     from lcn2mqtt.bridge import Bridge
 
 _MQTT_HANDLER_REGISTRY: list[tuple[re.Pattern[str], Callable[..., Awaitable[Any]]]] = []
-_INPUT_HANDLER_REGISTRY: list[
-    tuple[type[inputs.Input], Callable[..., Generator[MqttMessage]]]
-] = []
+_INPUT_HANDLER_REGISTRY: list[tuple[type[inputs.Input], Callable[..., None]]] = []
 
 
 def mqtt_to_regex(pattern: str) -> str:
@@ -49,7 +46,7 @@ def mqtt_handler(
 async def dispatch_mqtt(
     topic: str,
     payload: str,
-    module: Device,
+    device: Device,
     bridge: Bridge,
     *args: Any,
     **kwargs: Any,
@@ -59,23 +56,23 @@ async def dispatch_mqtt(
     for pattern, func in _MQTT_HANDLER_REGISTRY:
         match = pattern.match(topic)
         if match:
-            await func(topic, payload, module, bridge, *args, **kwargs)
+            await func(topic, payload, device, bridge, *args, **kwargs)
             success = True
     return success
 
 
 def input_handler(
     inp: type[inputs.Input],
-) -> Callable[..., Callable[..., Generator[MqttMessage]]]:
+) -> Callable[..., Callable[..., None]]:
     """Decorate a method as an input handler."""
 
     def decorator(
-        func: Callable[..., Generator[MqttMessage]],
-    ) -> Callable[..., Generator[MqttMessage]]:
+        func: Callable[..., None],
+    ) -> Callable[..., None]:
         _INPUT_HANDLER_REGISTRY.append((inp, func))
 
         @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Generator[MqttMessage]:
+        def wrapper(*args: Any, **kwargs: Any) -> None:
             return func(*args, **kwargs)
 
         return wrapper
@@ -83,8 +80,10 @@ def input_handler(
     return decorator
 
 
-def dispatch_input(inp: inputs.Input, *args: Any, **kwargs: Any) -> None:
+def dispatch_input(
+    inp: inputs.Input, device: Device, bridge: Bridge, *args: Any, **kwargs: Any
+) -> None:
     """Dispatch an input command to the appropriate handler."""
     for registered_inp, func in _INPUT_HANDLER_REGISTRY:
         if isinstance(inp, registered_inp):
-            func(inp, *args, **kwargs)
+            func(inp, device, bridge, *args, **kwargs)

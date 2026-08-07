@@ -272,12 +272,12 @@ class Bridge:
                 return
             lcn_addr: LcnAddr = self._pchk.physical_to_logical(physical_source_address)
 
-            module = await self.ensure_device_complete(
+            device = await self.ensure_device_complete(
                 lcn_addr
             )  # ensure module exists and is complete before handling input
 
             if isinstance(inp, inputs.ModInput):
-                dispatch_input(inp, module=module, bridge=self)
+                dispatch_input(inp, device=device, bridge=self)
             # _LOG.debug("Unhandled LCN input: %s", type(inp).__name__)
 
         except Exception:  # noqa: BLE001
@@ -322,8 +322,8 @@ class Bridge:
 
         # _LOG.debug("Received: %s = %r", topic, payload)
 
-        module = await self.ensure_device_complete(
+        device = await self.ensure_device_complete(
             logical_source_address
         )  # ensure module exists and is complete before handling input
 
-        await dispatch_mqtt(subtopic, payload, module, self)
+        await dispatch_mqtt(subtopic, payload, device, self)
