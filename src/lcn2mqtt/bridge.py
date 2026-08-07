@@ -45,14 +45,19 @@ class Bridge:
 
     # ---------- topic helpers ----------
 
-    def _base_topic(self) -> str:
+    @property
+    def base_topic(self) -> str:
         """Return the base MQTT topic for this bridge."""
         return f"{self.config.mqtt.base_topic}"
 
+    @property
+    def bridge_status_topic(self) -> str:
+        """MQTT topic for the bridge status."""
+        return f"{self.base_topic}/bridge/status"
+
     def _parse_addr_from_topic(self, topic: str) -> LcnAddr:
         """Parse the segment, address, and group flag from an MQTT topic, or return None if it can't be parsed."""
-        base = self._base_topic()
-        if not topic.startswith(base + "/"):
+        if not topic.startswith(self.base_topic + "/"):
             raise ValueError("Topic does not start with base topic")
 
         parts = topic.lower().split("/")
@@ -66,10 +71,6 @@ class Bridge:
             raise ValueError("Topic does not match expected format") from exc
         return LcnAddr(seg, addr, is_group)
 
-    def _bridge_status_topic(self) -> str:
-        """MQTT topic for the bridge status."""
-        return f"{self._base_topic()}/bridge/status"
-
     # ---------- run ----------
 
     async def run(self) -> None:
@@ -82,7 +83,7 @@ class Bridge:
             _LOG.info("Connected to LCN-PCHK at %s:%s", pchk.host, pchk.port)
 
             await mqtt.publish(
-                self._bridge_status_topic(),
+                self.bridge_status_topic,
                 LWT_PAYLOAD_ONLINE,
                 qos=self.config.mqtt.qos,
                 retain=True,
@@ -112,7 +113,7 @@ class Bridge:
         """Create an MQTT client with the appropriate settings."""
         cfg = self.config.mqtt
         will = aiomqtt.Will(
-            topic=self._bridge_status_topic(),
+            topic=self.bridge_status_topic,
             payload=LWT_PAYLOAD_OFFLINE,
             qos=cfg.qos,
             retain=True,
@@ -128,7 +129,7 @@ class Bridge:
 
     async def _subscribe_command_topics(self, mqtt: aiomqtt.Client) -> None:
         """Subscribe to MQTT command topics."""
-        lcn2mqtt_topic = f"{self._base_topic()}/#"
+        lcn2mqtt_topic = f"{self.base_topic}/#"
         await mqtt.subscribe(lcn2mqtt_topic, qos=self.config.mqtt.qos)
         _LOG.info("Subscribed to %s", lcn2mqtt_topic)
 
@@ -158,7 +159,9 @@ class Bridge:
 
         if item.delay is not None:
             self._deferred_timers[key] = asyncio.create_task(
-                self._publish(key, item.payload, delay=item.delay)
+                self._publish(
+                    f"{self.base_topic}/{key}", item.payload, delay=item.delay
+                )
             )
 
     async def _mqtt_message_loop(self, mqtt: aiomqtt.Client) -> None:
@@ -287,10 +290,11 @@ class Bridge:
 
     async def _handle_mqtt_message(self, msg: aiomqtt.Message) -> None:
         """Handle an incoming MQTT message."""
-        topic = str(msg.topic)
-        base = self._base_topic()
-        if not topic.startswith(base + "/"):
+        topic = str(msg.topic).lower()
+        if not topic.startswith(self.base_topic + "/"):
             return
+        if topic.startswith(self.bridge_status_topic):
+            return  # ignore bridge status messages
 
         # _LOG.debug("Received MQTT message: %s = %r", topic, msg.payload)
         try:
@@ -299,7 +303,7 @@ class Bridge:
             logical_source_address = self._pchk.physical_to_logical(
                 physical_source_address
             )
-            subtopic = topic.lower().split("/", 4)[-1]
+            subtopic = topic.split("/", 4)[-1]
         except Exception:  # noqa: BLE001
             _LOG.warning("Received MQTT message with invalid topic format: %s", topic)
             return

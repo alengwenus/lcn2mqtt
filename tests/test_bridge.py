@@ -25,11 +25,11 @@ class TestTopicHelpers:
 
     def test_base_topic(self, bridge: Bridge) -> None:
         """Base topic equals the configured identifier."""
-        assert bridge._base_topic() == "lcntest"
+        assert bridge.base_topic == "lcntest"
 
     def test_bridge_status_topic(self, bridge: Bridge) -> None:
         """Bridge status topic is <base>/bridge/status."""
-        assert bridge._bridge_status_topic() == "lcntest/bridge/status"
+        assert bridge.bridge_status_topic == "lcntest/bridge/status"
 
     def test_parse_addr_module(self, bridge: Bridge) -> None:
         """Module address is correctly parsed from a topic string."""
@@ -349,7 +349,10 @@ class TestDeferredMessages:
         await asyncio.sleep(0.1)
 
         bridge._mqtt.publish.assert_awaited_once()
-        assert bridge._mqtt.publish.call_args[0][0] == f"{prefix}/motor/outputs/state"
+        assert (
+            bridge._mqtt.publish.call_args[0][0]
+            == f"{bridge.base_topic}/{prefix}/motor/outputs/state"
+        )
         assert bridge._mqtt.publish.call_args[1]["payload"] == "open"
 
     async def test_new_deferred_replaces_existing_timer(self, bridge: Bridge) -> None:
