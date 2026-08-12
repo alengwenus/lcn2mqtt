@@ -10,7 +10,12 @@ import pytest
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.bridge import Bridge
-from lcn2mqtt.handlers.led import handle_command, handle_input, handle_retained_state
+from lcn2mqtt.handlers.led import (
+    handle_command,
+    handle_get_command,
+    handle_input,
+    handle_retained_state,
+)
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device, LedState
@@ -167,3 +172,86 @@ class TestHandleRetainedState:
         assert any(
             "Invalid led state payload" in record.message for record in caplog.records
         )
+
+
+class TestHandleGetCommand:
+    """Tests for the LED get MQTT command handler."""
+
+    async def test_get_single_led_publishes_state(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """led/3/get requests status and publishes the state of LED 3 only."""
+        states = list(_ALL_OFF)
+        states[2] = lcn_defs.LedStatus.ON
+        result_input = _make_led_inp(states, module_with_conn)
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_leds_and_logic_ops.return_value = result_input
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("led/3/get", "", module_with_conn, bridge)
+
+        conn.request_status_leds_and_logic_ops.assert_awaited_once()
+        mock_publish.assert_called_once_with(
+            module_with_conn.prefix,
+            MqttMessage("led/3/state", "on"),
+        )
+
+    async def test_get_all_leds_publishes_twelve_states(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """led/get requests status and publishes a state message for all 12 LEDs."""
+        result_input = _make_led_inp(list(_ALL_OFF), module_with_conn)
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_leds_and_logic_ops.return_value = result_input
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("led/get", "", module_with_conn, bridge)
+
+        conn.request_status_leds_and_logic_ops.assert_awaited_once()
+        assert mock_publish.call_count == 12
+
+    async def test_get_all_leds_correct_payloads(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """led/get publishes correct topic and payload for every LED."""
+        states = (
+            [lcn_defs.LedStatus.ON] * 3
+            + [lcn_defs.LedStatus.OFF] * 3
+            + [lcn_defs.LedStatus.BLINK] * 3
+            + [lcn_defs.LedStatus.FLICKER] * 3
+        )
+        result_input = _make_led_inp(states, module_with_conn)
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_leds_and_logic_ops.return_value = result_input
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("led/get", "", module_with_conn, bridge)
+
+        assert mock_publish.call_args_list == [
+            call(
+                module_with_conn.prefix,
+                MqttMessage(f"led/{idx + 1}/state", state.name.lower()),
+            )
+            for idx, state in enumerate(states)
+        ]
+
+    async def test_invalid_led_index_returns_early(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A non-integer LED index causes the handler to return without publishing."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("led/abc/get", "", module_with_conn, bridge)
+        conn.request_status_leds_and_logic_ops.assert_not_awaited()
+        mock_publish.assert_not_called()
+
+    async def test_none_result_publishes_nothing(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """When request_status_leds_and_logic_ops returns None, nothing is published."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_leds_and_logic_ops.return_value = None
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("led/1/get", "", module_with_conn, bridge)
+        mock_publish.assert_not_called()
