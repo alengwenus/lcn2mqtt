@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 from typing import cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.relay import (
+    handle_get_command,
     handle_relay_status,
     handle_retained_state,
     handle_set,
@@ -159,3 +160,104 @@ class TestHandleRetainedState:
         assert any(
             "Invalid relay state payload" in record.message for record in caplog.records
         )
+
+
+class TestHandleGetCommand:
+    """Tests for the relay/+/get and relay/get MQTT command handler."""
+
+    def _make_relay_inp(
+        self, states: list[bool], module: Device
+    ) -> inputs.ModStatusRelays:
+        """Build a ModStatusRelays input with the given relay states."""
+        return inputs.ModStatusRelays(module.address, states)
+
+    async def test_get_single_relay_publishes_state(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """relay/3/get requests status and publishes the state of relay 3 only."""
+        states = [False] * 8
+        states[2] = True
+        result_input = self._make_relay_inp(states, module_with_conn)
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_relays.return_value = result_input
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("relay/3/get", "", module_with_conn, bridge)
+
+        conn.request_status_relays.assert_awaited_once()
+        mock_publish.assert_called_once_with(
+            module_with_conn.prefix,
+            MqttMessage("relay/3/state", "on"),
+        )
+
+    async def test_get_all_relays_publishes_eight_states(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """relay/get requests status and publishes a state message for all 8 relays."""
+        result_input = self._make_relay_inp([False] * 8, module_with_conn)
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_relays.return_value = result_input
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("relay/get", "", module_with_conn, bridge)
+
+        conn.request_status_relays.assert_awaited_once()
+        assert mock_publish.call_count == 8
+
+    async def test_get_all_relays_correct_payloads(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """relay/get publishes correct topic and payload for every relay."""
+        states = [True, False, True, False, True, False, True, False]
+        result_input = self._make_relay_inp(states, module_with_conn)
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_relays.return_value = result_input
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("relay/get", "", module_with_conn, bridge)
+
+        assert mock_publish.call_args_list == [
+            call(
+                module_with_conn.prefix,
+                MqttMessage(f"relay/{idx}/state", "on" if state else "off"),
+            )
+            for idx, state in enumerate(states, start=1)
+        ]
+
+    async def test_out_of_range_index_is_ignored(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A relay index outside 1-8 is silently ignored."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("relay/9/get", "", module_with_conn, bridge)
+        conn.request_status_relays.assert_not_awaited()
+        mock_publish.assert_not_called()
+
+    async def test_invalid_index_returns_early(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A non-integer relay index causes the handler to return without publishing."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("relay/abc/get", "", module_with_conn, bridge)
+        conn.request_status_relays.assert_not_awaited()
+        mock_publish.assert_not_called()
+
+    async def test_none_result_publishes_nothing(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """When request_status_relays returns None, nothing is published."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_relays.return_value = None
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("relay/1/get", "", module_with_conn, bridge)
+        mock_publish.assert_not_called()
+
+    async def test_no_device_connection_returns_early(
+        self, module: Device, bridge: Bridge
+    ) -> None:
+        """When there is no device connection, accessing it raises ValueError."""
+        with pytest.raises(ValueError):
+            await handle_get_command("relay/1/get", "", module, bridge)
