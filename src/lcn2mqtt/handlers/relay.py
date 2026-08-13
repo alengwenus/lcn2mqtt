@@ -41,8 +41,6 @@ async def handle_set(
 ) -> None:
     """Handle a command to change a relay state."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
@@ -93,8 +91,6 @@ async def handle_get_command(
 ) -> None:
     """Handle a command to get the current state of a relay."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         if parts[1] == "get":

@@ -39,8 +39,6 @@ async def handle_command(
 ) -> None:
     """Handle a command to change an LED state."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
@@ -86,8 +84,6 @@ async def handle_get_command(
 ) -> None:
     """Handle a command to get the current state of an LED."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         if parts[1] == "get":

@@ -235,23 +235,28 @@ class TestHandleGetCommand:
             for idx, state in enumerate(states)
         ]
 
-    async def test_invalid_led_index_returns_early(
-        self, module_with_conn: Device, bridge: Bridge
+    @pytest.mark.parametrize(
+        "subtopic, payload",
+        [
+            ("led/13/get", "off"),  # invalid index
+            ("led/abc/get", "off"),  # non-integer index
+            ("led/1/get", None),  # no state returned (None)
+        ],
+    )
+    async def test_invalid_parameters_return_early(
+        self,
+        module_with_conn: Device,
+        bridge: Bridge,
+        subtopic: str,
+        payload: str | None,
     ) -> None:
-        """A non-integer LED index causes the handler to return without publishing."""
+        """Invalid parameters and return values are ignored."""
         conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_leds_and_logic_ops.return_value = payload
         with patch.object(bridge, "publish") as mock_publish:
-            await handle_get_command("led/abc/get", "", module_with_conn, bridge)
-        conn.request_status_leds_and_logic_ops.assert_not_awaited()
-        mock_publish.assert_not_called()
-
-    async def test_none_result_publishes_nothing(
-        self, module_with_conn: Device, bridge: Bridge
-    ) -> None:
-        """When request_status_leds_and_logic_ops returns None, nothing is published."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
-        conn.request_status_leds_and_logic_ops.return_value = None
-
-        with patch.object(bridge, "publish") as mock_publish:
-            await handle_get_command("led/1/get", "", module_with_conn, bridge)
+            await handle_get_command(subtopic, "", module_with_conn, bridge)
+        if payload is not None:
+            conn.request_status_leds_and_logic_ops.assert_not_awaited()
+        else:
+            conn.request_status_leds_and_logic_ops.assert_awaited_once()
         mock_publish.assert_not_called()

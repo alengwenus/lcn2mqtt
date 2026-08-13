@@ -55,8 +55,6 @@ async def handle_variable_change(
 ) -> None:
     """Handle a command to change a variable value."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
@@ -158,8 +156,6 @@ async def handle_setpoint_change(
 ) -> None:
     """Handle a command to change a setpoint value."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
@@ -289,8 +285,6 @@ async def handle_threshold_change(
 ) -> None:
     """Handle a command to change a threshold value."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         register = int(parts[1])

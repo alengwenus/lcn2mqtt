@@ -224,40 +224,28 @@ class TestHandleGetCommand:
             for idx, state in enumerate(states, start=1)
         ]
 
-    async def test_out_of_range_index_is_ignored(
-        self, module_with_conn: Device, bridge: Bridge
+    @pytest.mark.parametrize(
+        "subtopic, payload",
+        [
+            ("relay/9/get", "off"),  # invalid index
+            ("relay/abc/get", "off"),  # non-integer index
+            ("relay/1/get", None),  # no state returned (None)
+        ],
+    )
+    async def test_invalid_parameters_return_early(
+        self,
+        module_with_conn: Device,
+        bridge: Bridge,
+        subtopic: str,
+        payload: str | None,
     ) -> None:
-        """A relay index outside 1-8 is silently ignored."""
+        """Invalid parameters and return values are ignored."""
         conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_relays.return_value = payload
         with patch.object(bridge, "publish") as mock_publish:
-            await handle_get_command("relay/9/get", "", module_with_conn, bridge)
-        conn.request_status_relays.assert_not_awaited()
+            await handle_get_command(subtopic, "", module_with_conn, bridge)
+        if payload is not None:
+            conn.request_status_relays.assert_not_awaited()
+        else:
+            conn.request_status_relays.assert_awaited_once()
         mock_publish.assert_not_called()
-
-    async def test_invalid_index_returns_early(
-        self, module_with_conn: Device, bridge: Bridge
-    ) -> None:
-        """A non-integer relay index causes the handler to return without publishing."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
-        with patch.object(bridge, "publish") as mock_publish:
-            await handle_get_command("relay/abc/get", "", module_with_conn, bridge)
-        conn.request_status_relays.assert_not_awaited()
-        mock_publish.assert_not_called()
-
-    async def test_none_result_publishes_nothing(
-        self, module_with_conn: Device, bridge: Bridge
-    ) -> None:
-        """When request_status_relays returns None, nothing is published."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
-        conn.request_status_relays.return_value = None
-
-        with patch.object(bridge, "publish") as mock_publish:
-            await handle_get_command("relay/1/get", "", module_with_conn, bridge)
-        mock_publish.assert_not_called()
-
-    async def test_no_device_connection_returns_early(
-        self, module: Device, bridge: Bridge
-    ) -> None:
-        """When there is no device connection, accessing it raises ValueError."""
-        with pytest.raises(ValueError):
-            await handle_get_command("relay/1/get", "", module, bridge)
