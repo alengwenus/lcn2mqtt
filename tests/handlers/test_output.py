@@ -157,11 +157,11 @@ class TestHandleSet:
         self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'on' command when output is currently OFF triggers toggle_output."""
-        assert module_with_conn._device_connection
+        assert module_with_conn.device_connection
         module_with_conn.output1.state = OutputState.OFF
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "on", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.toggle_output.assert_awaited_with(
             0, 0, to_memory=True
         )  # idx-1, ramp, to_memory
@@ -170,23 +170,23 @@ class TestHandleSet:
         self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'on' command when output is already ON dims to the stored brightness."""
-        assert module_with_conn._device_connection
+        assert module_with_conn.device_connection
         module_with_conn.output1.state = OutputState.ON
         module_with_conn.output1.brightness = 80.0
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "on", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.dim_output.assert_awaited_with(0, 80.0, 0)  # idx-1, brightness, ramp
 
     async def test_off_when_on_calls_toggle(
         self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'off' command when output is ON triggers toggle_output."""
-        assert module_with_conn._device_connection
+        assert module_with_conn.device_connection
         module_with_conn.output1.state = OutputState.ON
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "off", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.toggle_output.assert_awaited_with(
             0, 0, to_memory=True
         )  # idx-1, ramp, to_memory
@@ -195,11 +195,11 @@ class TestHandleSet:
         self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """'off' command when output is already OFF dims to 0."""
-        assert module_with_conn._device_connection
+        assert module_with_conn.device_connection
         module_with_conn.output1.state = OutputState.OFF
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "off", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.dim_output.assert_awaited_with(
             0,
             0.0,
@@ -210,10 +210,10 @@ class TestHandleSet:
         self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """A numeric string payload dims the output to that brightness."""
-        assert module_with_conn._device_connection
+        assert module_with_conn.device_connection
         module_with_conn.output1.transition = 0
         await handle_set("output/1/set", "60.0", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.dim_output.assert_awaited_with(
             0,
             60.0,
@@ -224,9 +224,9 @@ class TestHandleSet:
         self, module_with_conn: Device, config: AppConfig
     ) -> None:
         """Brightness values above 100 are clamped to 100."""
-        assert module_with_conn._device_connection
+        assert module_with_conn.device_connection
         await handle_set("output/1/set", "150.0", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         _, call_args, _ = conn.dim_output.mock_calls[0]
         brightness_arg = call_args[1]  # positional arg index 1
         assert brightness_arg <= 100.0

@@ -109,8 +109,6 @@ async def handle_motor_relays_set(
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     if parts[1] == "outputs":
         return
@@ -267,8 +265,6 @@ async def handle_motor_outputs_set(
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         action = parts[2]

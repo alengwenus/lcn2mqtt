@@ -41,8 +41,6 @@ async def handle_set(
 ) -> None:
     """Handle a command to change a relay state."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
@@ -85,3 +83,33 @@ async def handle_retained_state(
     except ValueError:
         _LOG.warning("Invalid relay state payload %r", payload)
         return
+
+
+@mqtt_handler("relay/+/get", "relay/get")
+async def handle_get_command(
+    subtopic: str, payload: str, module: Device, bridge: Bridge
+) -> None:
+    """Handle a command to get the current state of a relay."""
+    device_connection = module.device_connection
+    parts = subtopic.split("/")
+    try:
+        if parts[1] == "get":
+            idxs = list(range(1, 9))
+        else:
+            idx = int(parts[1])
+            if not 1 <= idx <= 8:
+                return
+            idxs = [idx]
+    except ValueError:
+        return
+
+    result_input = await device_connection.request_status_relays()
+    if result_input is None:
+        return
+
+    for i in idxs:
+        state = RelayState.ON if result_input.states[i - 1] else RelayState.OFF
+        bridge.publish(
+            module.prefix,
+            MqttMessage(f"relay/{i}/state", state.value),
+        )

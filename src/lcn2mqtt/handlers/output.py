@@ -61,9 +61,6 @@ async def handle_set_brightness(
     bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
-    device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
@@ -90,9 +87,6 @@ async def handle_set_transition(
     bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
-    device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])
@@ -120,8 +114,6 @@ async def handle_set(
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
-    if device_connection is None:
-        return
     parts = subtopic.split("/")
     try:
         idx = int(parts[1])

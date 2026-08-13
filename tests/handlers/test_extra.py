@@ -17,7 +17,7 @@ class TestHandlePckSet:
         """Test that handle_pck_set calls device_connection.pck with the correct payload."""
         payload = "PIN003"
         await handle_pck_set("pck/set", payload, module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.pck.assert_awaited_once_with(payload)
 
 
@@ -30,7 +30,7 @@ class TestHandleDynTextSet:
         """Test that handle_dyn_text_set calls device_connection.dyn_text with the correct index and payload."""
         payload = "Hello"
         await handle_dyn_text_set("dyn_text/1/set", payload, module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.dyn_text.assert_awaited_once_with(0, payload)  # Index is 0-based
 
     async def test_out_of_range_index_is_ignored(
@@ -38,5 +38,5 @@ class TestHandleDynTextSet:
     ) -> None:
         """A dyn_text index outside 1-4 is silently ignored."""
         await handle_dyn_text_set("dyn_text/5/set", "Hello", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.dyn_text.assert_not_awaited()

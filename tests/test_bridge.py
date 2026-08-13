@@ -71,15 +71,8 @@ class TestEnsureModuleComplete:
         """Already-registered module is returned without re-creating it."""
         addr = LcnAddr(0, 7, False)
         existing = DeviceConfig(address=addr)
-        # existing._device_connection = MagicMock(spec=device.DeviceConnection)
-        existing._device_connection = mock_device_conn
-        # existing._device_connection.request_name = AsyncMock()
+        existing.device_connection = mock_device_conn
         bridge_with_pchk.devices[addr] = existing
-        # with patch.object(
-        #     bridge_with_pchk._pchk,
-        #     "get_device_connection",
-        #     MagicMock(return_value=mock_device_conn),
-        # ):
         result = await bridge_with_pchk.ensure_device_complete(addr)
         assert result is existing
 

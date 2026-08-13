@@ -70,5 +70,5 @@ def module_with_conn(module: Device) -> Device:
     """Return module with a mock async device connection (new firmware)."""
     conn = AsyncMock()
     conn.serials.software_serial = 0x180000  # > 0x170206 → new firmware
-    module._device_connection = conn
+    module.device_connection = conn
     return module

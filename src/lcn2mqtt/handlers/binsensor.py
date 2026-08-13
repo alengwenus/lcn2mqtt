@@ -52,3 +52,33 @@ async def handle_retained_state(
         return
 
     setattr(module, f"binsensor{idx}", payload.lower() == "on")
+
+
+@mqtt_handler("binsensor/+/get", "binsensor/get")
+async def handle_get_command(
+    subtopic: str, payload: str, module: Device, bridge: Bridge
+) -> None:
+    """Handle a command to get the current state of a binary sensor."""
+    device_connection = module.device_connection
+    parts = subtopic.split("/")
+    try:
+        if parts[1] == "get":
+            idxs = list(range(1, 9))
+        else:
+            idx = int(parts[1])
+            if not 1 <= idx <= 8:
+                return
+            idxs = [idx]
+    except ValueError:
+        return
+
+    result_input = await device_connection.request_status_binary_sensors()
+    if result_input is None:
+        return
+
+    for i in idxs:
+        state = "on" if result_input.states[i - 1] else "off"
+        bridge.publish(
+            module.prefix,
+            MqttMessage(f"binsensor/{i}/state", state),
+        )
