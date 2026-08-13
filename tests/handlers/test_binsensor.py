@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import call, patch
+from typing import cast
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 from pypck import inputs
 
 from lcn2mqtt.bridge import Bridge
-from lcn2mqtt.handlers.binsensor import handle_binsensor_input, handle_retained_state
+from lcn2mqtt.handlers.binsensor import (
+    handle_binsensor_input,
+    handle_get_command,
+    handle_retained_state,
+)
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.device import Device
 
@@ -110,3 +115,108 @@ class TestHandleRetainedState:
             "Invalid binary sensor state payload" in record.message
             for record in caplog.records
         )
+
+
+class TestHandleGetCommand:
+    """Tests for the binsensor/+/get and binsensor/get MQTT command handler."""
+
+    def _make_inp(
+        self, states: list[bool], module: Device
+    ) -> inputs.ModStatusBinSensors:
+        return inputs.ModStatusBinSensors(module.address, states)
+
+    async def test_get_single_sensor_on(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """binsensor/3/get publishes 'on' when sensor 3 is active."""
+
+        states = [False] * 8
+        states[2] = True
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_binary_sensors.return_value = self._make_inp(
+            states, module_with_conn
+        )
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("binsensor/3/get", "", module_with_conn, bridge)
+
+        conn.request_status_binary_sensors.assert_awaited_once()
+        mock_publish.assert_called_once_with(
+            module_with_conn.prefix,
+            MqttMessage("binsensor/3/state", "on"),
+        )
+
+    async def test_get_all_sensors_publishes_eight_states(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """binsensor/get publishes a state message for all 8 sensors."""
+
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_binary_sensors.return_value = self._make_inp(
+            [False] * 8, module_with_conn
+        )
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("binsensor/get", "", module_with_conn, bridge)
+
+        conn.request_status_binary_sensors.assert_awaited_once()
+        assert mock_publish.call_count == 8
+
+    async def test_get_all_sensors_correct_payloads(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """binsensor/get publishes correct topic and payload for every sensor."""
+        states = [True, False, True, False, True, False, True, False]
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_binary_sensors.return_value = self._make_inp(
+            states, module_with_conn
+        )
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("binsensor/get", "", module_with_conn, bridge)
+
+        assert mock_publish.call_args_list == [
+            call(
+                module_with_conn.prefix,
+                MqttMessage(f"binsensor/{i}/state", "on" if s else "off"),
+            )
+            for i, s in enumerate(states, start=1)
+        ]
+
+    async def test_out_of_range_index_is_ignored(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A sensor index outside 1-8 is silently ignored."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("binsensor/9/get", "", module_with_conn, bridge)
+        conn.request_status_binary_sensors.assert_not_awaited()
+        mock_publish.assert_not_called()
+
+    async def test_invalid_index_returns_early(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A non-integer sensor index returns early without publishing."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("binsensor/abc/get", "", module_with_conn, bridge)
+        conn.request_status_binary_sensors.assert_not_awaited()
+        mock_publish.assert_not_called()
+
+    async def test_none_result_publishes_nothing(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """When request_status_binary_sensors returns None, nothing is published."""
+        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn.request_status_binary_sensors.return_value = None
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_get_command("binsensor/1/get", "", module_with_conn, bridge)
+        mock_publish.assert_not_called()
+
+    async def test_no_device_connection_raises(
+        self, module: Device, bridge: Bridge
+    ) -> None:
+        """When there is no device connection, ValueError is raised."""
+        with pytest.raises(ValueError):
+            await handle_get_command("binsensor/1/get", "", module, bridge)
