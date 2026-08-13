@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import cast
-from unittest.mock import AsyncMock
+from typing import TYPE_CHECKING, cast
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from pypck import inputs, lcn_defs
 
+from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.motor import (
     _STOP_TIMEOUT_POSITIONING,
     handle_motor_outputs_position_module_status,
@@ -21,6 +22,9 @@ from lcn2mqtt.handlers.motor import (
 from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device, MotorState
+
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
 
 # ---------- Motors via relays ----------
 
@@ -37,11 +41,14 @@ def _relay_states(motor0_on: bool, motor0_down: bool) -> list[bool]:
 class TestHandleMotorRelaysStatus:
     """Tests for the ModStatusRelays motor input handler."""
 
-    async def test_all_relays_reported_on_first_call(self, module: Device) -> None:
+    async def test_all_relays_reported_on_first_call(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """All 4 motors produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
-        messages = list(handle_motor_relays_status(inp, module=module))
-        assert len(messages) == 4
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_relays_status(inp, module=module, bridge=bridge)
+        assert mock_publish.call_count == 4
 
     @pytest.mark.parametrize(
         "motor0_on, motor0_down, expected_state",
@@ -55,6 +62,7 @@ class TestHandleMotorRelaysStatus:
     async def test_motor_state_detected(
         self,
         module: Device,
+        bridge: Bridge,
         motor0_on: bool,
         motor0_down: bool,
         expected_state: MotorState,
@@ -63,20 +71,27 @@ class TestHandleMotorRelaysStatus:
         inp = inputs.ModStatusRelays(
             module.address, _relay_states(motor0_on=motor0_on, motor0_down=motor0_down)
         )
-        messages = list(handle_motor_relays_status(inp, module=module))
-        msg = next(
-            (message for message in messages if message.topic == "motor/1/state"),
-            None,
-        )
-        assert msg is not None
-        assert msg.payload == expected_state.value
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_relays_status(inp, module=module, bridge=bridge)
 
-    async def test_no_change_produces_no_messages(self, module: Device) -> None:
+        msg = MqttMessage(
+            topic="motor/1/state",
+            payload=expected_state.value,
+            delay=0.0,
+        )
+
+        mock_publish.assert_any_call(module.prefix, msg)
+
+    async def test_no_change_produces_no_messages(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """No messages are emitted when motor states are unchanged."""
         inp = inputs.ModStatusRelays(module.address, [False] * 8)
-        list(handle_motor_relays_status(inp, module=module))
-        messages = list(handle_motor_relays_status(inp, module=module))
-        assert messages == []
+        handle_motor_relays_status(inp, module=module, bridge=bridge)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_relays_status(inp, module=module, bridge=bridge)
+
+        mock_publish.assert_not_called()
 
 
 class TestHandleMotorRelaysSet:
@@ -129,21 +144,27 @@ class TestHandleMotorRelaysSet:
 class TestHandleMotorOutputsStatus:
     """Tests for the ModStatusOutput motor input handler."""
 
-    async def test_outputs_reported_on_first_call(self, module: Device) -> None:
+    async def test_outputs_reported_on_first_call(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """All motors produce a message on the very first call (all were unknown)."""
         inp = inputs.ModStatusOutput(module.address, 0, 0)
-        messages = list(handle_motor_outputs_status(inp, module=module))
-        assert len(messages) == 1
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_outputs_status(inp, module=module, bridge=bridge)
+        assert mock_publish.call_count == 1
 
-    async def test_module_positioning_mode_is_ignored(self, module: Device) -> None:
+    async def test_module_positioning_mode_is_ignored(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """In MODULE positioning mode the output-status is skipped entirely."""
         module.motor_outputs.positioning_mode = "MODULE"  # type: ignore[assignment]
         module.motor_outputs.state = MotorState.OPENING
         inp = inputs.ModStatusOutput(
             module.address, lcn_defs.OutputPort.OUTPUTUP.value, 0
         )
-        messages = list(handle_motor_outputs_status(inp, module=module))
-        assert messages == []
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_outputs_status(inp, module=module, bridge=bridge)
+        assert mock_publish.call_count == 0
         assert module.motor_outputs.state == MotorState.OPENING  # unchanged
 
     @pytest.mark.parametrize(
@@ -178,6 +199,7 @@ class TestHandleMotorOutputsStatus:
     async def test_motor_state_detected(
         self,
         module: Device,
+        bridge: Bridge,
         output: lcn_defs.OutputPort,
         percent: float,
         prior_state: MotorState,
@@ -186,26 +208,28 @@ class TestHandleMotorOutputsStatus:
         """Motor 1 reports the correct state based on relay inputs."""
         module.motor_outputs.state = prior_state
         inp = inputs.ModStatusOutput(module.address, output.value, percent)
-        messages = list(handle_motor_outputs_status(inp, module=module))
-        msg = next(
-            (
-                m
-                for m in messages
-                if isinstance(m, MqttMessage) and m.topic == "motor/outputs/state"
-            ),
-            None,
-        )
-        assert msg is not None
-        assert msg.payload == expected_state.value
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_outputs_status(inp, module=module, bridge=bridge)
 
-    async def test_no_change_produces_no_messages(self, module: Device) -> None:
+        msg = MqttMessage(
+            topic="motor/outputs/state",
+            payload=expected_state.value,
+            delay=0.0,
+        )
+
+        mock_publish.assert_any_call(module.prefix, msg)
+
+    async def test_no_change_produces_no_messages(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """No messages are emitted when motor states are unchanged."""
         inp = inputs.ModStatusOutput(
             module.address, lcn_defs.OutputPort.OUTPUTUP.value, 0
         )
-        list(handle_motor_outputs_status(inp, module=module))
-        messages = list(handle_motor_outputs_status(inp, module=module))
-        assert messages == []
+        handle_motor_outputs_status(inp, module=module, bridge=bridge)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_outputs_status(inp, module=module, bridge=bridge)
+        mock_publish.assert_not_called()
 
 
 class TestHandleMotorOutputsSet:
@@ -271,7 +295,7 @@ class TestHandleRetainedState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: MotorState,
         motor: str,
@@ -280,15 +304,15 @@ class TestHandleRetainedState:
         """Sending a retained state command updates the module's motor state."""
         motor_obj = getattr(module, motor_attr)
         assert motor_obj.state is None
-        await handle_retained_state(f"motor/{motor}/state", payload, module, config)
+        await handle_retained_state(f"motor/{motor}/state", payload, module, bridge)
         assert motor_obj.state == expected_state
 
     async def test_invalid_payload_logs_warning(
-        self, module: Device, config: AppConfig, caplog: pytest.LogCaptureFixture
+        self, module: Device, bridge: Bridge, caplog: pytest.LogCaptureFixture
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
-            await handle_retained_state("motor/1/state", "other", module, config)
+            await handle_retained_state("motor/1/state", "other", module, bridge)
         assert any(
             "Invalid motor state payload" in record.message for record in caplog.records
         )
@@ -313,85 +337,150 @@ class TestHandleMotorOutputsPositionModuleStatus:
             module.motor_outputs.stop_timeout = stop_timeout_s
         return module
 
-    def _run(self, module: Device, position: float) -> list[MqttMessage]:
+    def _run(self, module: Device, bridge: Bridge, position: float) -> Mock:
         """Run the handler for motor 4 (outputs) at the given position."""
         inp = inputs.ModStatusMotorPositionModule(module.address, 3, position)
-        return list(handle_motor_outputs_position_module_status(inp, module=module))
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_motor_outputs_position_module_status(
+                inp, module=module, bridge=bridge
+            )
+        return mock_publish
 
-    def test_deferred_message_yielded_when_opening(self, module: Device) -> None:
+    def test_deferred_message_yielded_when_opening(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """DeferredMqttMessage is yielded when position is increasing (OPENING)."""
         self._make_module(module, old_position=30.0)
-        items = self._run(module, 50.0)
-        deferred = next((item for item in items if item.delay not in (None, 0.0)), None)
-        assert deferred is not None
-        assert deferred.topic == "motor/outputs/state"
-        assert deferred.payload == MotorState.OPEN.value
-        assert deferred.delay == _STOP_TIMEOUT_POSITIONING
+        mock_publish = self._run(module, bridge, 50.0)
 
-    def test_deferred_cancel_yielded_when_open(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.OPEN.value,
+                delay=_STOP_TIMEOUT_POSITIONING,
+            ),
+        )
+
+    def test_deferred_cancel_yielded_when_open(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """Cancel-only DeferredMqttMessage is yielded when position == 100 (OPEN)."""
         self._make_module(module, old_position=80.0)
-        items = self._run(module, 100.0)
-        deferred = next((item for item in items if item.delay is None), None)
-        assert deferred is not None
-        assert deferred.topic == "motor/outputs/state"
-        assert deferred.delay is None  # cancel only
+        mock_publish = self._run(module, bridge, 100.0)
 
-    def test_deferred_cancel_yielded_when_closed(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.OPEN.value,
+                delay=None,
+            ),
+        )
+
+    def test_deferred_cancel_yielded_when_closed(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """Cancel-only DeferredMqttMessage is yielded when position == 0 (CLOSED)."""
         self._make_module(module, old_position=20.0)
-        items = self._run(module, 0.0)
-        deferred = next((item for item in items if item.delay is None), None)
-        assert deferred is not None
-        assert deferred.delay is None
+        mock_publish = self._run(module, bridge, 0.0)
+
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.CLOSED.value,
+                delay=None,
+            ),
+        )
 
     def test_no_deferred_on_first_update_without_direction(
-        self, module: Device
+        self, module: Device, bridge: Bridge
     ) -> None:
         """No DeferredMqttMessage when direction cannot be determined (first update)."""
         self._make_module(module, old_position=None)
-        items = self._run(module, 50.0)
-        assert all(item.delay == 0.0 for item in items)
+        mock_publish = self._run(module, bridge, 50.0)
+        assert all(call[0][1].delay == 0.0 for call in mock_publish.call_args_list)
 
     def test_produce_returns_open_at_intermediate_position(
-        self, module: Device
+        self, module: Device, bridge: Bridge
     ) -> None:
         """Payload is OPEN when motor stops at an intermediate position (> 0)."""
         self._make_module(module, old_position=30.0)
-        items = self._run(module, 50.0)
-        deferred = next(item for item in items if item.delay not in (None, 0.0))
-        assert deferred.payload == MotorState.OPEN.value
+        mock_publish = self._run(module, bridge, 50.0)
 
-    def test_produce_returns_closed_at_position_zero(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.OPEN.value,
+                delay=_STOP_TIMEOUT_POSITIONING,
+            ),
+        )
+
+    def test_produce_returns_closed_at_position_zero(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """Cancel-only DeferredMqttMessage is yielded when motor reaches position 0 (CLOSED)."""
         self._make_module(module, old_position=20.0)
-        items = self._run(module, 0.0)
-        deferred = next(item for item in items if item.delay is None)
-        # position==0 triggers cancel-only; the immediate MqttMessage says "closed"
-        assert deferred.delay is None
-        assert deferred.topic == "motor/outputs/state"
-        assert deferred.payload == MotorState.CLOSED.value
+        mock_publish = self._run(module, bridge, 0.0)
 
-    def test_produce_returns_none_when_already_resolved(self, module: Device) -> None:
+        # position==0 triggers cancel-only; the immediate MqttMessage says "closed"
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.CLOSED.value,
+                delay=None,
+            ),
+        )
+
+    def test_produce_returns_none_when_already_resolved(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """When timer would fire but state is already resolved, payload is OPEN (no guard)."""
         # The payload is fixed at schedule time, so no runtime guard is needed.
         # Redundant publishes are harmless in MQTT.
         self._make_module(module, old_position=30.0)
-        items = self._run(module, 50.0)
-        deferred = next(item for item in items if item.delay not in (None, 0.0))
-        # Payload is fixed regardless of current state
-        assert deferred.payload == MotorState.OPEN.value
+        mock_publish = self._run(module, bridge, 50.0)
 
-    def test_custom_stop_timeout_used_in_deferred(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.OPEN.value,
+                delay=_STOP_TIMEOUT_POSITIONING,
+            ),
+        )
+
+    def test_custom_stop_timeout_used_in_deferred(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """Custom stop_timeout_s is passed as the DeferredMqttMessage delay."""
         self._make_module(module, old_position=30.0, stop_timeout_s=15.0)
-        items = self._run(module, 50.0)
-        deferred = next(item for item in items if item.delay not in (None, 0.0))
-        assert deferred.delay == 15.0
+        mock_publish = self._run(module, bridge, 50.0)
 
-    def test_default_timeout_is_5s_for_positioning_mode(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.OPEN.value,
+                delay=15.0,
+            ),
+        )
+
+    def test_default_timeout_is_5s_for_positioning_mode(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """Default timeout for positioning mode is _STOP_TIMEOUT_POSITIONING (5 s)."""
         self._make_module(module, old_position=30.0)
-        items = self._run(module, 50.0)
-        deferred = next(item for item in items if item.delay not in (None, 0.0))
-        assert deferred.delay == _STOP_TIMEOUT_POSITIONING
+        mock_publish = self._run(module, bridge, 50.0)
+
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.OPEN.value,
+                delay=_STOP_TIMEOUT_POSITIONING,
+            ),
+        )

@@ -1,18 +1,20 @@
 """Handler for extra functionalities."""
 
 import logging
-
-from lcn2mqtt.models.config import AppConfig
+from typing import TYPE_CHECKING
 
 from ..models.device import Device
 from .dispatcher import mqtt_handler
 
 _LOG = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
+
 
 @mqtt_handler("pck/set")
 async def handle_pck_set(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a command to send a PCK message."""
     device_connection = module.device_connection
@@ -23,7 +25,7 @@ async def handle_pck_set(
 
 @mqtt_handler("dyn_text/#/set")
 async def handle_dyn_text_set(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a command to send a dynamic text message."""
     device_connection = module.device_connection

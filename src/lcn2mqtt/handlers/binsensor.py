@@ -1,38 +1,43 @@
 """Handler for LCN binary sensors."""
 
 import logging
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from pypck import inputs
 
 from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
-from lcn2mqtt.models.config import AppConfig
 
 from ..models.device import Device
 
 _LOG = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
+
 
 @input_handler(inputs.ModStatusBinSensors)
 def handle_binsensor_input(
-    inp: inputs.ModStatusBinSensors, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusBinSensors, module: Device, bridge: Bridge
+) -> None:
     """Handle binary sensors status input, update the module state, and publish any changes."""
     changed: list[bool] = module.update_binaries(inp.states)
     for idx, did_change in enumerate(changed, start=1):
         if did_change:
-            yield MqttMessage(
-                f"binsensor/{idx}/state", "on" if inp.states[idx - 1] else "off"
+            bridge.publish(
+                module.prefix,
+                MqttMessage(
+                    f"binsensor/{idx}/state", "on" if inp.states[idx - 1] else "off"
+                ),
             )
 
 
 @mqtt_handler("binsensor/+/state")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a request for the retained state of a binary sensor."""
-    if not config.retained_broker_states:
+    if not bridge.config.retained_broker_states:
         return
     parts = subtopic.split("/")
     try:

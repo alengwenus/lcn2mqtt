@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.helpers import MqttMessage
-from lcn2mqtt.models.config import AppConfig
 
 from ..models.device import Device, RelayState
 from .dispatcher import input_handler, mqtt_handler
@@ -16,22 +15,29 @@ from .dispatcher import input_handler, mqtt_handler
 _LOG = logging.getLogger(__name__)
 
 
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
+
+
 @input_handler(inputs.ModStatusRelays)
 def handle_relay_status(
     inp: inputs.ModStatusRelays,
     module: Device,
-) -> Generator[MqttMessage]:
-    """Handle a relay status input, update the module state, and return any changes."""
+    bridge: Bridge,
+) -> None:
+    """Handle a relay status input, update the module state, and publish any changes."""
     states = [RelayState.ON if s else RelayState.OFF for s in inp.states]
     changed = module.update_relays(states)
     for i, did_change in enumerate(changed, start=1):
         if did_change:
-            yield MqttMessage(f"relay/{i}/state", states[i - 1].value)
+            bridge.publish(
+                module.prefix, MqttMessage(f"relay/{i}/state", states[i - 1].value)
+            )
 
 
 @mqtt_handler("relay/+/set")
 async def handle_set(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a command to change a relay state."""
     device_connection = module.device_connection
@@ -61,10 +67,10 @@ async def handle_set(
 
 @mqtt_handler("relay/+/state")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a request for the retained state of a relay."""
-    if not config.retained_broker_states:
+    if not bridge.config.retained_broker_states:
         return
     parts = subtopic.split("/")
     try:

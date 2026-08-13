@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Generator
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.helpers import MqttMessage
-from lcn2mqtt.models.config import AppConfig
 
 from ..models.device import Device, MotorState
 from .dispatcher import input_handler, mqtt_handler
@@ -23,13 +22,17 @@ Publish = Callable[[str, Any], Awaitable[None]]
 _STOP_TIMEOUT_POSITIONING = 5.0  # seconds
 
 
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
+
+
 # ---------- Motors via relays ----------
 
 
 @input_handler(inputs.ModStatusRelays)
 def handle_motor_relays_status(
-    inp: inputs.ModStatusRelays, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusRelays, module: Device, bridge: Bridge
+) -> None:
     """Handle a motor position status input, update the module state, and publish any changes."""
     states = [MotorState.OPEN] * 4
     for idx in range(4):
@@ -49,13 +52,15 @@ def handle_motor_relays_status(
     changed = module.update_motors(states)
     for i, did_change in enumerate(changed, start=1):
         if did_change:
-            yield MqttMessage(f"motor/{i}/state", states[i - 1].value)
+            bridge.publish(
+                module.prefix, MqttMessage(f"motor/{i}/state", states[i - 1].value)
+            )
 
 
 @input_handler(inputs.ModStatusMotorPositionModule)
 def handle_motor_relays_position_module_status(
-    inp: inputs.ModStatusMotorPositionModule, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusMotorPositionModule, module: Device, bridge: Bridge
+) -> None:
     """Handle a motor position status input, update the module state, and publish any changes."""
     motor = inp.motor + 1
     position = inp.position
@@ -63,19 +68,25 @@ def handle_motor_relays_position_module_status(
     motor_obj = getattr(module, f"motor{motor}")
 
     if position == 100:
-        yield MqttMessage(f"motor/{motor}/state", MotorState.OPEN.value)
+        bridge.publish(
+            module.prefix, MqttMessage(f"motor/{motor}/state", MotorState.OPEN.value)
+        )
     elif position == 0:
-        yield MqttMessage(f"motor/{motor}/state", MotorState.CLOSED.value)
+        bridge.publish(
+            module.prefix, MqttMessage(f"motor/{motor}/state", MotorState.CLOSED.value)
+        )
 
     did_change = motor_obj.update_position(position)
     if did_change:
-        yield MqttMessage(f"motor/{motor}/position", f"{position}")
+        bridge.publish(
+            module.prefix, MqttMessage(f"motor/{motor}/position", f"{position}")
+        )
 
 
 @input_handler(inputs.ModStatusMotorPositionBS4)
 def handle_motor_position_module_bs4(
-    inp: inputs.ModStatusMotorPositionBS4, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusMotorPositionBS4, module: Device, bridge: Bridge
+) -> None:
     """Handle a motor position status input, update the module state, and publish any changes."""
     motor = inp.motor + 1
     position = inp.position
@@ -84,7 +95,9 @@ def handle_motor_position_module_bs4(
     did_change = motor_obj.update_position(position)
 
     if did_change:
-        yield MqttMessage(f"motor/{motor}/position", f"{position}")
+        bridge.publish(
+            module.prefix, MqttMessage(f"motor/{motor}/position", f"{position}")
+        )
 
 
 @mqtt_handler("motor/+/set", "motor/+/set_position")
@@ -92,7 +105,7 @@ async def handle_motor_relays_set(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
@@ -149,8 +162,8 @@ async def handle_motor_relays_set(
 
 @input_handler(inputs.ModStatusOutput)
 def handle_motor_outputs_status(
-    inp: inputs.ModStatusOutput, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusOutput, module: Device, bridge: Bridge
+) -> None:
     """Handle a motor position status input, update the module state, and publish any changes."""
     # In MODULE positioning mode the output-status is unreliable and arrives with a large delay;
     # state is tracked accurately via ModStatusMotorPositionModule updates instead.
@@ -179,13 +192,13 @@ def handle_motor_outputs_status(
 
     changed = module.motor_outputs.update_state(state)
     if changed:
-        yield MqttMessage("motor/outputs/state", state.value)
+        bridge.publish(module.prefix, MqttMessage("motor/outputs/state", state.value))
 
 
 @input_handler(inputs.ModStatusMotorPositionModule)
 def handle_motor_outputs_position_module_status(
-    inp: inputs.ModStatusMotorPositionModule, module: Device
-) -> Generator[MqttMessage]:
+    inp: inputs.ModStatusMotorPositionModule, module: Device, bridge: Bridge
+) -> None:
     """Handle a motor position status input, update the module state, and publish any changes."""
     if module.motor_outputs.positioning_mode != lcn_defs.MotorPositioningMode.MODULE:
         return
@@ -200,7 +213,9 @@ def handle_motor_outputs_position_module_status(
 
     did_change = module.motor_outputs.update_position(position)
     if did_change:
-        yield MqttMessage("motor/outputs/position", f"{position}")
+        bridge.publish(
+            module.prefix, MqttMessage("motor/outputs/position", f"{position}")
+        )
 
     if position == 100:
         new_state = MotorState.OPEN
@@ -214,24 +229,32 @@ def handle_motor_outputs_position_module_status(
         return  # direction not yet determinable (first update)
 
     if module.motor_outputs.update_state(new_state):
-        yield MqttMessage("motor/outputs/state", new_state.value)
+        bridge.publish(
+            module.prefix, MqttMessage("motor/outputs/state", new_state.value)
+        )
 
     # Schedule or cancel the inactivity stop timer.
     # In positioning mode any intermediate stop means "not fully closed" = OPEN.
     if new_state in (MotorState.OPENING, MotorState.CLOSING):
-        yield MqttMessage(
-            topic="motor/outputs/state",
-            payload=MotorState.OPEN.value,
-            delay=(
-                module.motor_outputs.stop_timeout
-                if module.motor_outputs.stop_timeout is not None
-                else _STOP_TIMEOUT_POSITIONING
+        bridge.publish(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state",
+                payload=MotorState.OPEN.value,
+                delay=(
+                    module.motor_outputs.stop_timeout
+                    if module.motor_outputs.stop_timeout is not None
+                    else _STOP_TIMEOUT_POSITIONING
+                ),
             ),
         )
     else:
         # Motor reached end position (OPEN or CLOSED) – cancel any pending stop timer.
-        yield MqttMessage(
-            topic="motor/outputs/state", payload=new_state.value, delay=None
+        bridge.publish(
+            module.prefix,
+            MqttMessage(
+                topic="motor/outputs/state", payload=new_state.value, delay=None
+            ),
         )
 
 
@@ -240,7 +263,7 @@ async def handle_motor_outputs_set(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change a motor state."""
     device_connection = module.device_connection
@@ -287,10 +310,10 @@ async def handle_motor_outputs_set(
 
 @mqtt_handler("motor/+/state", "motor/+/position")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a request for the retained state of a motor."""
-    if not config.retained_broker_states:
+    if not bridge.config.retained_broker_states:
         return
     parts = subtopic.split("/")
     try:

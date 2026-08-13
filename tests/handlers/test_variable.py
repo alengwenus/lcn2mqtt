@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pypck import inputs, lcn_defs
 
+from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.handlers.variable import (
     handle_retained_setpoint_state,
     handle_retained_threshold_state,
@@ -20,6 +21,7 @@ from lcn2mqtt.handlers.variable import (
     handle_variable_change,
     handle_variable_input,
 )
+from lcn2mqtt.helpers import MqttMessage
 from lcn2mqtt.models.config import AppConfig
 from lcn2mqtt.models.device import Device
 
@@ -40,24 +42,37 @@ NATIVE_LOCKED = lcn_defs.VarValue.from_native(0x8000 + 500)  # locked flag set
 class TestHandleVariableInput:
     """Tests for the ModStatusVar variable input handler."""
 
-    async def test_new_value_produces_state_message(self, module: Device) -> None:
+    async def test_new_value_produces_state_message(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A new variable value publishes a state message."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        messages = list(handle_variable_input(inp, module=module))
-        assert any(message.topic == "variable/1/state" for message in messages)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_variable_input(inp, module=module, bridge=bridge)
 
-    async def test_unchanged_value_produces_no_message(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("variable/1/state", "1000", delay=0.0),
+        )
+
+    async def test_unchanged_value_produces_no_message(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """Identical consecutive values yield no messages."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        list(handle_variable_input(inp, module=module))
-        messages = list(handle_variable_input(inp, module=module))
-        assert messages == []
+        handle_variable_input(inp, module=module, bridge=bridge)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_variable_input(inp, module=module, bridge=bridge)
+        mock_publish.assert_not_called()
 
-    async def test_non_variable_type_returns_empty(self, module: Device) -> None:
+    async def test_non_variable_type_returns_empty(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A setpoint var type is ignored by the variable handler."""
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_1000)
-        messages = list(handle_variable_input(inp, module=module))
-        assert messages == []
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_variable_input(inp, module=module, bridge=bridge)
+        mock_publish.assert_not_called()
 
 
 class TestHandleVariableChange:
@@ -125,7 +140,7 @@ class TestHandleRetainedVariableState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         unit: lcn_defs.VarUnit,
         payload: str,
         expected_state: float,
@@ -134,7 +149,7 @@ class TestHandleRetainedVariableState:
         module.variable1.unit = unit.name.lower()  # type: ignore[assignment]
         assert module.variable1.value is None
         await handle_retained_variable_state(
-            "variable/1/state", payload, module, config
+            "variable/1/state", payload, module, bridge
         )
         expected_var_value = lcn_defs.VarValue.from_var_unit(expected_state, unit, True)
         assert module.variable1.value == expected_var_value.to_native()
@@ -149,14 +164,14 @@ class TestHandleRetainedVariableState:
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
         payload: str,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_variable_state(
-                "variable/1/state", payload, module, config
+                "variable/1/state", payload, module, bridge
             )
         assert any(
             "Invalid variable state payload" in record.message
@@ -172,43 +187,52 @@ class TestHandleRetainedVariableState:
 class TestHandleSetpointInput:
     """Tests for the ModStatusVar setpoint input handler."""
 
-    async def test_new_value_produces_state_message(self, module: Device) -> None:
+    async def test_new_value_produces_state_message(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A new setpoint value publishes a state message."""
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_1000)
-        messages = list(handle_setpoint_input(inp, module=module))
-        assert any(message.topic == "setpoint/1/state" for message in messages)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_setpoint_input(inp, module=module, bridge=bridge)
 
-    async def test_locked_value_produces_locked_message(self, module: Device) -> None:
+        assert mock_publish.call_count == 2
+
+    async def test_locked_value_produces_locked_message(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A locked setpoint value publishes a locked message with payload 'on'."""
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_LOCKED)
-        messages = list(handle_setpoint_input(inp, module=module))
-        locked_msg = next(
-            (message for message in messages if message.topic == "setpoint/1/locked"),
-            None,
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_setpoint_input(inp, module=module, bridge=bridge)
+
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("setpoint/1/locked", "on", delay=0.0),
         )
-        assert locked_msg is not None
-        assert locked_msg.payload == "on"
 
     async def test_unlocked_value_produces_locked_off_message(
-        self, module: Device
+        self, module: Device, bridge: Bridge
     ) -> None:
         """After being locked, an unlocked value publishes locked='off'."""
         # First set as locked so the unlock triggers a change
         module.setpoint1.locked = True
         inp = inputs.ModStatusVar(module.address, SETPOINT1, NATIVE_1000)
-        messages = list(handle_setpoint_input(inp, module=module))
-        locked_msg = next(
-            (message for message in messages if message.topic == "setpoint/1/locked"),
-            None,
-        )
-        assert locked_msg is not None
-        assert locked_msg.payload == "off"
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_setpoint_input(inp, module=module, bridge=bridge)
 
-    async def test_non_setpoint_type_returns_empty(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("setpoint/1/locked", "off", delay=0.0),
+        )
+
+    async def test_non_setpoint_type_returns_empty(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A plain variable var type is ignored by the setpoint handler."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        messages = list(handle_setpoint_input(inp, module=module))
-        assert messages == []
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_setpoint_input(inp, module=module, bridge=bridge)
+        mock_publish.assert_not_called()
 
 
 class TestHandleSetpointChange:
@@ -314,7 +338,7 @@ class TestHandleRetainedSetpointState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         unit: lcn_defs.VarUnit,
         payload: str,
         expected_state: float,
@@ -323,7 +347,7 @@ class TestHandleRetainedSetpointState:
         module.setpoint1.unit = unit.name.lower()  # type: ignore[assignment]
         assert module.setpoint1.value is None
         await handle_retained_setpoint_state(
-            "setpoint/1/state", payload, module, config
+            "setpoint/1/state", payload, module, bridge
         )
         expected_var_value = lcn_defs.VarValue.from_var_unit(expected_state, unit, True)
         assert module.setpoint1.value == expected_var_value.to_native()
@@ -338,14 +362,14 @@ class TestHandleRetainedSetpointState:
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
         payload: str,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_setpoint_state(
-                "setpoint/1/state", payload, module, config
+                "setpoint/1/state", payload, module, bridge
             )
         assert any(
             "Invalid setpoint state payload" in record.message
@@ -366,27 +390,27 @@ class TestHandleRetainedSetpointLocked:
     async def test_retained_locked_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: bool,
     ) -> None:
         """Sending a retained locked command updates the module's setpoint locked state."""
         assert module.setpoint1.locked is None
         await handle_retained_setpoint_state(
-            "setpoint/1/locked", payload, module, config
+            "setpoint/1/locked", payload, module, bridge
         )
         assert module.setpoint1.locked == expected_state
 
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_setpoint_state(
-                "setpoint/1/locked", "unknown", module, config
+                "setpoint/1/locked", "unknown", module, bridge
             )
         assert any(
             "Invalid setpoint locked payload" in record.message
@@ -402,53 +426,55 @@ class TestHandleRetainedSetpointLocked:
 class TestHandleThresholdInput:
     """Tests for the ModStatusVar threshold input handler."""
 
-    async def test_new_value_produces_state_message(self, module: Device) -> None:
+    async def test_new_value_produces_state_message(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A new threshold value publishes a state message."""
         inp = inputs.ModStatusVar(module.address, THRESHOLD11, NATIVE_1000)
-        messages = list(handle_threshold_input(inp, module=module))
-        assert any(m.topic == "threshold/1/1/state" for m in messages)
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_threshold_input(inp, module=module, bridge=bridge)
+
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("threshold/1/1/state", "1000", delay=0.0),
+        )
 
     async def test_locked_threshold_produces_locked_on_message(
-        self, module: Device
+        self, module: Device, bridge: Bridge
     ) -> None:
         """A locked threshold publishes locked='on'."""
         inp = inputs.ModStatusVar(module.address, THRESHOLD11, NATIVE_LOCKED)
-        messages = list(handle_threshold_input(inp, module=module))
-        locked_msg = next(
-            (
-                message
-                for message in messages
-                if message.topic == "threshold/1/1/locked"
-            ),
-            None,
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_threshold_input(inp, module=module, bridge=bridge)
+
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("threshold/1/1/locked", "on", delay=0.0),
         )
-        assert locked_msg is not None
-        assert locked_msg.payload == "on"
 
     async def test_unlocked_threshold_produces_locked_off_message(
-        self, module: Device
+        self, module: Device, bridge: Bridge
     ) -> None:
         """After being locked, an unlocked threshold publishes locked='off'."""
         # First set as locked so the unlock triggers a change
         module.threshold11.locked = True
         inp = inputs.ModStatusVar(module.address, THRESHOLD11, NATIVE_1000)
-        messages = list(handle_threshold_input(inp, module=module))
-        locked_msg = next(
-            (
-                message
-                for message in messages
-                if message.topic == "threshold/1/1/locked"
-            ),
-            None,
-        )
-        assert locked_msg is not None
-        assert locked_msg.payload == "off"
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_threshold_input(inp, module=module, bridge=bridge)
 
-    async def test_non_threshold_type_returns_empty(self, module: Device) -> None:
+        mock_publish.assert_any_call(
+            module.prefix,
+            MqttMessage("threshold/1/1/locked", "off", delay=0.0),
+        )
+
+    async def test_non_threshold_type_returns_empty(
+        self, module: Device, bridge: Bridge
+    ) -> None:
         """A plain variable var type is ignored by the threshold handler."""
         inp = inputs.ModStatusVar(module.address, VAR1, NATIVE_1000)
-        messages = list(handle_threshold_input(inp, module=module))
-        assert messages == []
+        with patch.object(bridge, "publish") as mock_publish:
+            handle_threshold_input(inp, module=module, bridge=bridge)
+        mock_publish.assert_not_called()
 
 
 class TestHandleThresholdChange:
@@ -542,7 +568,7 @@ class TestHandleRetainedThresholdState:
     async def test_retained_state_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         unit: lcn_defs.VarUnit,
         payload: str,
         expected_state: float,
@@ -551,7 +577,7 @@ class TestHandleRetainedThresholdState:
         module.threshold11.unit = unit.name.lower()  # type: ignore[assignment]
         assert module.threshold11.value is None
         await handle_retained_threshold_state(
-            "threshold/1/1/state", payload, module, config
+            "threshold/1/1/state", payload, module, bridge
         )
         expected_var_value = lcn_defs.VarValue.from_var_unit(expected_state, unit, True)
         assert module.threshold11.value == expected_var_value.to_native()
@@ -566,14 +592,14 @@ class TestHandleRetainedThresholdState:
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
         payload: str,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_threshold_state(
-                "threshold/1/1/state", payload, module, config
+                "threshold/1/1/state", payload, module, bridge
             )
         assert any(
             "Invalid threshold state payload" in record.message
@@ -594,27 +620,27 @@ class TestHandleRetainedThresholdLocked:
     async def test_retained_locked_updates_module(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         payload: str,
         expected_state: bool,
     ) -> None:
         """Sending a retained locked command updates the module's threshold locked state."""
         assert module.threshold11.locked is None
         await handle_retained_threshold_state(
-            "threshold/1/1/locked", payload, module, config
+            "threshold/1/1/locked", payload, module, bridge
         )
         assert module.threshold11.locked == expected_state
 
     async def test_invalid_payload_logs_warning(
         self,
         module: Device,
-        config: AppConfig,
+        bridge: Bridge,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """An unknown payload logs a warning and does not update the module."""
         with caplog.at_level(logging.WARNING):
             await handle_retained_threshold_state(
-                "threshold/1/1/locked", "unknown", module, config
+                "threshold/1/1/locked", "unknown", module, bridge
             )
         assert any(
             "Invalid threshold locked payload" in record.message

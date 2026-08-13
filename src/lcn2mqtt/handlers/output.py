@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Generator
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 from pypck import inputs, lcn_defs
 
 from lcn2mqtt.handlers.dispatcher import input_handler, mqtt_handler
 from lcn2mqtt.helpers import MqttMessage
-from lcn2mqtt.models.config import AppConfig
 
 from ..models.device import Device, Output, OutputState
 
@@ -22,8 +21,12 @@ Publish = Callable[[str, Any], Awaitable[None]]
 _DEFAULT_TRANSITION_MS = 500
 
 
+if TYPE_CHECKING:
+    from lcn2mqtt.bridge import Bridge
+
+
 @input_handler(inputs.ModStatusOutput)
-def handle_input(inp: inputs.ModStatusOutput, module: Device) -> Generator[MqttMessage]:
+def handle_input(inp: inputs.ModStatusOutput, module: Device, bridge: Bridge) -> None:
     """Handle an output status input, update the module state, and publish any changes."""
     idx = inp.output_id + 1  # 0-based -> 1-based
     output = getattr(module, f"output{idx}")
@@ -35,12 +38,19 @@ def handle_input(inp: inputs.ModStatusOutput, module: Device) -> Generator[MqttM
     brightness_changed = True  # Always publish brightness, even if unchanged, to ensure retained state is correct
 
     if state_changed:
-        yield MqttMessage(
-            f"output/{idx}/state",
-            output.state.value if output.state is not None else None,
+        bridge.publish(
+            module.prefix,
+            MqttMessage(
+                f"output/{idx}/state",
+                output.state.value if output.state is not None else None,
+            ),
         )
+
     if brightness_changed:
-        yield MqttMessage(f"output/{idx}/brightness", f"{inp.percent:.2f}")
+        bridge.publish(
+            module.prefix,
+            MqttMessage(f"output/{idx}/brightness", f"{inp.percent:.2f}"),
+        )
 
 
 @mqtt_handler("output/+/set_brightness")
@@ -48,7 +58,7 @@ async def handle_set_brightness(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -77,7 +87,7 @@ async def handle_set_transition(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -106,7 +116,7 @@ async def handle_set(
     subtopic: str,
     payload: str,
     module: Device,
-    config: AppConfig,
+    bridge: Bridge,
 ) -> None:
     """Handle a command to change an output state or brightness."""
     device_connection = module.device_connection
@@ -150,10 +160,10 @@ async def handle_set(
 
 @mqtt_handler("output/+/state", "output/+/brightness")
 async def handle_retained_state(
-    subtopic: str, payload: str, module: Device, config: AppConfig
+    subtopic: str, payload: str, module: Device, bridge: Bridge
 ) -> None:
     """Handle a request for the retained state of a relay."""
-    if not config.retained_broker_states:
+    if not bridge.config.retained_broker_states:
         return
     parts = subtopic.split("/")
     try:

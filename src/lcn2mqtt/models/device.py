@@ -135,8 +135,12 @@ class Motor(BaseModel):
 
     @field_validator("positioning_mode", mode="before")
     @classmethod
-    def _validate_positioning_mode(cls, v: str) -> lcn_defs.MotorPositioningMode:
+    def _validate_positioning_mode(
+        cls, v: str | lcn_defs.MotorPositioningMode
+    ) -> lcn_defs.MotorPositioningMode:
         """Validate the motor positioning mode."""
+        if isinstance(v, lcn_defs.MotorPositioningMode):
+            return v
         try:
             positioning_mode = lcn_defs.MotorPositioningMode(v.upper())
         except ValueError as exc:
@@ -331,6 +335,12 @@ class Device(BaseModel):
                 setattr(self, f"binsensor{i}", states[i - 1])
                 changed[i - 1] = True
         return changed
+
+    @property
+    def prefix(self) -> str:
+        """Get the MQTT topic prefix for this module."""
+        target_type = "group" if self.address.is_group else "module"
+        return f"{target_type}/{self.address.seg_id}/{self.address.addr_id}"
 
     @property
     def device_connection(self) -> DeviceConnection:
