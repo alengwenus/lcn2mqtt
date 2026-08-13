@@ -132,7 +132,7 @@ class TestHandleGetCommand:
 
         states = [False] * 8
         states[2] = True
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_binary_sensors.return_value = self._make_inp(
             states, module_with_conn
         )
@@ -151,7 +151,7 @@ class TestHandleGetCommand:
     ) -> None:
         """binsensor/get publishes a state message for all 8 sensors."""
 
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_binary_sensors.return_value = self._make_inp(
             [False] * 8, module_with_conn
         )
@@ -167,7 +167,7 @@ class TestHandleGetCommand:
     ) -> None:
         """binsensor/get publishes correct topic and payload for every sensor."""
         states = [True, False, True, False, True, False, True, False]
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_binary_sensors.return_value = self._make_inp(
             states, module_with_conn
         )
@@ -187,7 +187,7 @@ class TestHandleGetCommand:
         self, module_with_conn: Device, bridge: Bridge
     ) -> None:
         """A sensor index outside 1-8 is silently ignored."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         with patch.object(bridge, "publish") as mock_publish:
             await handle_get_command("binsensor/9/get", "", module_with_conn, bridge)
         conn.request_status_binary_sensors.assert_not_awaited()
@@ -197,7 +197,7 @@ class TestHandleGetCommand:
         self, module_with_conn: Device, bridge: Bridge
     ) -> None:
         """A non-integer sensor index returns early without publishing."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         with patch.object(bridge, "publish") as mock_publish:
             await handle_get_command("binsensor/abc/get", "", module_with_conn, bridge)
         conn.request_status_binary_sensors.assert_not_awaited()
@@ -207,7 +207,7 @@ class TestHandleGetCommand:
         self, module_with_conn: Device, bridge: Bridge
     ) -> None:
         """When request_status_binary_sensors returns None, nothing is published."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_binary_sensors.return_value = None
 
         with patch.object(bridge, "publish") as mock_publish:

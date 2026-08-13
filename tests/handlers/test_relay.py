@@ -101,7 +101,7 @@ class TestHandleRelaySet:
     ) -> None:
         """Sending a set command calls the device's control_relays method with the correct modifier."""
         await handle_set("relay/1/set", payload, module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_relays.assert_awaited_once()
         states = conn.control_relays.call_args.args[0]
         assert states[0] == expected_modifier
@@ -116,7 +116,7 @@ class TestHandleRelaySet:
         """An unknown payload logs a warning and does not call the device."""
         with caplog.at_level(logging.WARNING):
             await handle_set("relay/1/set", "unknown", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_relays.assert_not_awaited()
         assert any("relay" in record.message.lower() for record in caplog.records)
 
@@ -125,7 +125,7 @@ class TestHandleRelaySet:
     ) -> None:
         """A relay index outside 1-8 is silently ignored."""
         await handle_set("relay/9/set", "on", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_relays.assert_not_awaited()
 
 
@@ -178,7 +178,7 @@ class TestHandleGetCommand:
         states = [False] * 8
         states[2] = True
         result_input = self._make_relay_inp(states, module_with_conn)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_relays.return_value = result_input
 
         with patch.object(bridge, "publish") as mock_publish:
@@ -195,7 +195,7 @@ class TestHandleGetCommand:
     ) -> None:
         """relay/get requests status and publishes a state message for all 8 relays."""
         result_input = self._make_relay_inp([False] * 8, module_with_conn)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_relays.return_value = result_input
 
         with patch.object(bridge, "publish") as mock_publish:
@@ -210,7 +210,7 @@ class TestHandleGetCommand:
         """relay/get publishes correct topic and payload for every relay."""
         states = [True, False, True, False, True, False, True, False]
         result_input = self._make_relay_inp(states, module_with_conn)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_relays.return_value = result_input
 
         with patch.object(bridge, "publish") as mock_publish:
@@ -240,7 +240,7 @@ class TestHandleGetCommand:
         payload: str | None,
     ) -> None:
         """Invalid parameters and return values are ignored."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_relays.return_value = payload
         with patch.object(bridge, "publish") as mock_publish:
             await handle_get_command(subtopic, "", module_with_conn, bridge)

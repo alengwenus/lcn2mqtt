@@ -112,7 +112,7 @@ class TestHandleLedCommand:
     ) -> None:
         """Payload calls control_led with the expected LedStatus."""
         await handle_command("led/1/set", payload, module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_led.assert_awaited_once()
         _, (_, status), _ = conn.control_led.mock_calls[0]  # name, args, kwargs
         assert status == expected_status
@@ -122,7 +122,7 @@ class TestHandleLedCommand:
     ) -> None:
         """After sending the command, LED status is requested from the device."""
         await handle_command("led/1/set", "on", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_leds_and_logic_ops.assert_awaited_once()
 
     async def test_invalid_payload_logs_warning(
@@ -134,7 +134,7 @@ class TestHandleLedCommand:
         """An unknown LED state payload logs a warning and does not call the device."""
         with caplog.at_level(logging.WARNING):
             await handle_command("led/1/set", "rainbow", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_led.assert_not_awaited()
         assert any("led" in record.message.lower() for record in caplog.records)
 
@@ -184,7 +184,7 @@ class TestHandleGetCommand:
         states = list(_ALL_OFF)
         states[2] = lcn_defs.LedStatus.ON
         result_input = _make_led_inp(states, module_with_conn)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_leds_and_logic_ops.return_value = result_input
 
         with patch.object(bridge, "publish") as mock_publish:
@@ -201,7 +201,7 @@ class TestHandleGetCommand:
     ) -> None:
         """led/get requests status and publishes a state message for all 12 LEDs."""
         result_input = _make_led_inp(list(_ALL_OFF), module_with_conn)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_leds_and_logic_ops.return_value = result_input
 
         with patch.object(bridge, "publish") as mock_publish:
@@ -221,7 +221,7 @@ class TestHandleGetCommand:
             + [lcn_defs.LedStatus.FLICKER] * 3
         )
         result_input = _make_led_inp(states, module_with_conn)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_leds_and_logic_ops.return_value = result_input
 
         with patch.object(bridge, "publish") as mock_publish:
@@ -251,7 +251,7 @@ class TestHandleGetCommand:
         payload: str | None,
     ) -> None:
         """Invalid parameters and return values are ignored."""
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.request_status_leds_and_logic_ops.return_value = payload
         with patch.object(bridge, "publish") as mock_publish:
             await handle_get_command(subtopic, "", module_with_conn, bridge)

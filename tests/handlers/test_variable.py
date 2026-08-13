@@ -83,7 +83,7 @@ class TestHandleVariableChange:
     ) -> None:
         """Action 'set' calls var_abs on the device connection."""
         await handle_variable_change("variable/1/set", "1000", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_abs.assert_awaited_once_with(
             lcn_defs.Var.VAR1,
             1000,
@@ -98,7 +98,7 @@ class TestHandleVariableChange:
         await handle_variable_change(
             "variable/1/shift", "1000", module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_rel.assert_awaited_once_with(
             lcn_defs.Var.VAR1,
             1000,
@@ -118,7 +118,7 @@ class TestHandleVariableChange:
             await handle_variable_change(
                 "variable/1/set", "notanumber", module_with_conn, config
             )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_abs.assert_not_awaited()
         assert any("variable" in record.message.lower() for record in caplog.records)
 
@@ -243,7 +243,7 @@ class TestHandleSetpointChange:
     ) -> None:
         """Action 'set' calls var_abs."""
         await handle_setpoint_change("setpoint/1/set", "1000", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_abs.assert_awaited_once_with(
             lcn_defs.Var.R1VARSETPOINT,
             1000,
@@ -258,7 +258,7 @@ class TestHandleSetpointChange:
         await handle_setpoint_change(
             "setpoint/1/shift", "1000", module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_rel.assert_awaited_once_with(
             lcn_defs.Var.R1VARSETPOINT,
             1000,
@@ -274,7 +274,7 @@ class TestHandleSetpointChange:
         await handle_setpoint_change(
             "setpoint/1/offset", "1000", module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_rel.assert_awaited_once_with(
             lcn_defs.Var.R1VARSETPOINT,
             1000,
@@ -301,7 +301,7 @@ class TestHandleSetpointChange:
         await handle_setpoint_change(
             "setpoint/1/lock", payload, module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.lock_regulator.assert_awaited_once_with(0, expected_locked)
 
     async def test_invalid_payload_logs_warning(
@@ -315,7 +315,7 @@ class TestHandleSetpointChange:
             await handle_setpoint_change(
                 "setpoint/1/set", "notanumber", module_with_conn, config
             )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         assert conn is not None
         conn.var_abs.assert_not_awaited()
         assert any("setpoint" in record.message.lower() for record in caplog.records)
@@ -487,7 +487,7 @@ class TestHandleThresholdChange:
         await handle_threshold_change(
             "threshold/1/1/shift", "1000", module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_rel.assert_awaited_once_with(
             lcn_defs.Var.THRS1,
             1000,
@@ -503,7 +503,7 @@ class TestHandleThresholdChange:
         await handle_threshold_change(
             "threshold/1/1/offset", "1000", module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_rel.assert_awaited_once_with(
             lcn_defs.Var.THRS1,
             1000,
@@ -530,7 +530,7 @@ class TestHandleThresholdChange:
         await handle_threshold_change(
             "threshold/1/1/lock", payload, module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.lock_thresholds.assert_awaited_once_with(
             0, [expected_locked] + [lcn_defs.ThresholdLockStateModifier.NOCHANGE] * 3
         )
@@ -546,7 +546,7 @@ class TestHandleThresholdChange:
             await handle_threshold_change(
                 "threshold/1/1/shift", "bad", module_with_conn, config
             )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.var_rel.assert_not_awaited()
         assert any("threshold" in record.message.lower() for record in caplog.records)
 

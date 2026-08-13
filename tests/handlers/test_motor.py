@@ -116,7 +116,7 @@ class TestHandleMotorRelaysSet:
     ) -> None:
         """The set command calls the device connection's control_motor_relays method."""
         await handle_motor_relays_set("motor/1/set", payload, module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_motor_relays.assert_awaited_once_with(
             0, expected_modifier, lcn_defs.MotorPositioningMode.NONE
         )
@@ -126,7 +126,7 @@ class TestHandleMotorRelaysSet:
     ) -> None:
         """An unrecognised payload is silently ignored."""
         await handle_motor_relays_set("motor/1/set", "wiggle", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_motor_relays.assert_not_awaited()
 
     async def test_out_of_range_index_is_ignored(
@@ -134,7 +134,7 @@ class TestHandleMotorRelaysSet:
     ) -> None:
         """A motor index outside 1-4 is silently ignored."""
         await handle_motor_relays_set("motor/5/set", "open", module_with_conn, config)
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_motor_relays.assert_not_awaited()
 
 
@@ -257,7 +257,7 @@ class TestHandleMotorOutputsSet:
         await handle_motor_outputs_set(
             "motor/outputs/set", payload, module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_motor_outputs.assert_awaited_once_with(
             expected_modifier, reverse_time
         )
@@ -269,7 +269,7 @@ class TestHandleMotorOutputsSet:
         await handle_motor_outputs_set(
             "motor/outputs/set", "wiggle", module_with_conn, config
         )
-        conn = cast(AsyncMock, module_with_conn._device_connection)
+        conn = cast(AsyncMock, module_with_conn.device_connection)
         conn.control_motor_outputs.assert_not_awaited()
 
 
