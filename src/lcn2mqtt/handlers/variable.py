@@ -114,6 +114,31 @@ async def handle_retained_variable_state(
         return
 
 
+@mqtt_handler("variable/+/get")
+async def handle_variable_get_command(
+    subtopic: str, payload: str, module: Device, bridge: Bridge
+) -> None:
+    """Handle a command to get the current variable values for a variable."""
+    device_connection = module.device_connection
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+    except ValueError:
+        return
+    if not 1 <= idx <= len(lcn_defs.Var.variables()):
+        return
+    variable = lcn_defs.Var.var_id_to_var(idx - 1)
+    result_input = await device_connection.request_status_variable(variable)
+    if result_input is None:
+        return
+    variable_obj = getattr(module, f"variable{idx}", None)
+    if variable_obj is None:
+        return
+    unit = variable_obj.unit
+    value_unit = result_input.value.to_var_unit(unit)
+    bridge.publish(module.prefix, MqttMessage(f"variable/{idx}/state", str(value_unit)))
+
+
 # ---------- Setpoints ----------
 
 
@@ -229,6 +254,38 @@ async def handle_retained_setpoint_state(
             _LOG.warning("Invalid setpoint locked payload %r", payload)
             return
         setpoint_obj.locked = payload.lower() == "on"
+
+
+@mqtt_handler("setpoint/+/get")
+async def handle_setpoint_get_command(
+    subtopic: str, payload: str, module: Device, bridge: Bridge
+) -> None:
+    """Handle a command to get the current setpoint values for a setpoint."""
+    device_connection = module.device_connection
+    parts = subtopic.split("/")
+    try:
+        idx = int(parts[1])
+    except ValueError:
+        return
+    if not 1 <= idx <= len(lcn_defs.Var.set_points()):
+        return
+    variable = lcn_defs.Var.set_point_id_to_var(idx - 1)
+    result_input = await device_connection.request_status_variable(variable)
+    if result_input is None:
+        return
+    setpoint_obj = getattr(module, f"setpoint{idx}", None)
+    if setpoint_obj is None:
+        return
+    unit = setpoint_obj.unit
+    value_unit = result_input.value.to_var_unit(unit, is_lockable_regulator_source=True)
+    bridge.publish(module.prefix, MqttMessage(f"setpoint/{idx}/state", str(value_unit)))
+    bridge.publish(
+        module.prefix,
+        MqttMessage(
+            f"setpoint/{idx}/locked",
+            "on" if result_input.value.is_locked_regulator() else "off",
+        ),
+    )
 
 
 # ---------- Thresholds ----------
@@ -368,3 +425,27 @@ async def handle_retained_threshold_state(
             _LOG.warning("Invalid threshold locked payload %r", payload)
             return
         threshold_obj.locked = payload.lower() == "on"
+
+
+@mqtt_handler("threshold/+/get")
+async def handle_threshold_get_command(
+    subtopic: str, payload: str, module: Device, bridge: Bridge
+) -> None:
+    """Handle a command to get the current threshold values for a register."""
+    device_connection = module.device_connection
+    serial = device_connection.serials.software_serial
+    thresholds_list = (
+        lcn_defs.Var.thresholds_old()
+        if serial < 0x170206
+        else lcn_defs.Var.thresholds_new()
+    )
+    parts = subtopic.split("/")
+    try:
+        register = int(parts[1])
+        if not 1 <= register <= len(thresholds_list):
+            return
+        # requesting any threshold in a register triggers LCN to respond for all indices
+        variable = thresholds_list[register - 1][0]
+    except (ValueError, IndexError):
+        return
+    await device_connection.request_status_variable(variable)
