@@ -15,10 +15,13 @@ from lcn2mqtt.handlers.variable import (
     handle_retained_threshold_state,
     handle_retained_variable_state,
     handle_setpoint_change,
+    handle_setpoint_get_command,
     handle_setpoint_input,
     handle_threshold_change,
+    handle_threshold_get_command,
     handle_threshold_input,
     handle_variable_change,
+    handle_variable_get_command,
     handle_variable_input,
 )
 from lcn2mqtt.helpers import MqttMessage
@@ -177,6 +180,58 @@ class TestHandleRetainedVariableState:
             "Invalid variable state payload" in record.message
             for record in caplog.records
         )
+
+
+class TestHandleVariableGetCommand:
+    """Tests for the variable/+/get MQTT command handler."""
+
+    async def test_get_publishes_state(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A valid get command requests status and publishes the state."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+        conn.request_status_variable.return_value = inputs.ModStatusVar(
+            module_with_conn.address, VAR1, NATIVE_1000
+        )
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_variable_get_command(
+                "variable/1/get", "", module_with_conn, bridge
+            )
+
+        conn.request_status_variable.assert_awaited_once_with(VAR1)
+        mock_publish.assert_called_once_with(
+            module_with_conn.prefix,
+            MqttMessage("variable/1/state", "1000"),
+        )
+
+    async def test_get_with_none_result_does_not_publish(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """If request_status_variable returns None, nothing is published."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+        conn.request_status_variable.return_value = None
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_variable_get_command(
+                "variable/1/get", "", module_with_conn, bridge
+            )
+
+        mock_publish.assert_not_called()
+
+    async def test_get_with_out_of_range_idx_does_nothing(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """An out-of-range variable index does nothing."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_variable_get_command(
+                "variable/999/get", "", module_with_conn, bridge
+            )
+
+        conn.request_status_variable.assert_not_awaited()
+        mock_publish.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +473,81 @@ class TestHandleRetainedSetpointLocked:
         )
 
 
+class TestHandleSetpointGetCommand:
+    """Tests for the setpoint/+/get MQTT command handler."""
+
+    async def test_get_publishes_state_and_locked(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A valid get command requests status and publishes state and locked messages."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+        conn.request_status_variable.return_value = inputs.ModStatusVar(
+            module_with_conn.address, SETPOINT1, NATIVE_1000
+        )
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_setpoint_get_command(
+                "setpoint/1/get", "", module_with_conn, bridge
+            )
+
+        conn.request_status_variable.assert_awaited_once_with(SETPOINT1)
+        mock_publish.assert_any_call(
+            module_with_conn.prefix,
+            MqttMessage("setpoint/1/state", "1000"),
+        )
+        mock_publish.assert_any_call(
+            module_with_conn.prefix,
+            MqttMessage("setpoint/1/locked", "off"),
+        )
+
+    async def test_get_locked_setpoint_publishes_locked_on(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A locked setpoint get publishes locked='on'."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+        conn.request_status_variable.return_value = inputs.ModStatusVar(
+            module_with_conn.address, SETPOINT1, NATIVE_LOCKED
+        )
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_setpoint_get_command(
+                "setpoint/1/get", "", module_with_conn, bridge
+            )
+
+        mock_publish.assert_any_call(
+            module_with_conn.prefix,
+            MqttMessage("setpoint/1/locked", "on"),
+        )
+
+    async def test_get_with_none_result_does_not_publish(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """If request_status_variable returns None, nothing is published."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+        conn.request_status_variable.return_value = None
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_setpoint_get_command(
+                "setpoint/1/get", "", module_with_conn, bridge
+            )
+
+        mock_publish.assert_not_called()
+
+    async def test_get_with_out_of_range_idx_does_nothing(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """An out-of-range setpoint index does nothing."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+
+        with patch.object(bridge, "publish") as mock_publish:
+            await handle_setpoint_get_command(
+                "setpoint/999/get", "", module_with_conn, bridge
+            )
+
+        conn.request_status_variable.assert_not_awaited()
+        mock_publish.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Threshold input handler
 # ---------------------------------------------------------------------------
@@ -646,3 +776,33 @@ class TestHandleRetainedThresholdLocked:
             "Invalid threshold locked payload" in record.message
             for record in caplog.records
         )
+
+
+class TestHandleThresholdGetCommand:
+    """Tests for the threshold/+/get MQTT command handler."""
+
+    async def test_get_requests_first_threshold_in_register(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """A valid get command requests status for the first threshold in the register."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+        # module_with_conn uses new firmware (serial 0x180000 > 0x170206)
+        expected_variable = lcn_defs.Var.thresholds_new()[0][0]
+
+        await handle_threshold_get_command(
+            "threshold/1/get", "", module_with_conn, bridge
+        )
+
+        conn.request_status_variable.assert_awaited_once_with(expected_variable)
+
+    async def test_get_with_out_of_range_register_does_nothing(
+        self, module_with_conn: Device, bridge: Bridge
+    ) -> None:
+        """An out-of-range register does nothing."""
+        conn = cast(AsyncMock, module_with_conn.device_connection)
+
+        await handle_threshold_get_command(
+            "threshold/999/get", "", module_with_conn, bridge
+        )
+
+        conn.request_status_variable.assert_not_awaited()
