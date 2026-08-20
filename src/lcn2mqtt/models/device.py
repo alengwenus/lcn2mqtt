@@ -40,6 +40,14 @@ class LedState(StrEnum):
     FLICKER = "flicker"
 
 
+class LogicOpState(StrEnum):
+    """State for module logic operations."""
+
+    NONE = "none"
+    SOME = "some"
+    ALL = "all"
+
+
 class MotorState(StrEnum):
     """State for module motors."""
 
@@ -240,6 +248,11 @@ class Device(BaseModel):
     led11: LedState | None = None
     led12: LedState | None = None
 
+    logic_op1: LogicOpState | None = None
+    logic_op2: LogicOpState | None = None
+    logic_op3: LogicOpState | None = None
+    logic_op4: LogicOpState | None = None
+
     variable1: Variable = Field(default_factory=Variable)
     variable2: Variable = Field(default_factory=Variable)
     variable3: Variable = Field(default_factory=Variable)
@@ -322,6 +335,17 @@ class Device(BaseModel):
         for i in range(1, 13):
             if getattr(self, f"led{i}") != states[i - 1]:
                 setattr(self, f"led{i}", states[i - 1])
+                changed[i - 1] = True
+        return changed
+
+    def update_logic_ops(self, states: list[LogicOpState]) -> list[bool]:
+        """Update the logic operation states and return a list of which ones changed."""
+        if len(states) != 4:
+            raise ValueError(f"Invalid number of logic operation states: {len(states)}")
+        changed = [False] * 4
+        for i in range(1, 5):
+            if getattr(self, f"logic_op{i}") != states[i - 1]:
+                setattr(self, f"logic_op{i}", states[i - 1])
                 changed[i - 1] = True
         return changed
 
