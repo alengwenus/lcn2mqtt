@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pypck import inputs, lcn_defs
 from pypck.lcn_addr import LcnAddr
+from pypck.lcn_defs import LcnEvent
 
 from lcn2mqtt.bridge import Bridge
 from lcn2mqtt.helpers import MqttMessage
@@ -371,3 +372,47 @@ class TestDeferredMessages:
         assert second_handle is not None
         assert second_handle is not first_handle
         assert second_handle is not first_handle
+
+
+# ---------------------------------------------------------------------------
+# Bus event handling
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestBusEvents:
+    """Tests for _on_lcn_event / _handle_bus_event."""
+
+    async def test_bus_disconnected_publishes_offline(self, bridge: Bridge) -> None:
+        """BUS_DISCONNECTED event publishes offline payload to bridge status topic."""
+        bridge._mqtt = AsyncMock()
+        bridge._on_lcn_event(LcnEvent.BUS_DISCONNECTED)
+        await asyncio.sleep(0)
+
+        bridge._mqtt.publish.assert_awaited_once_with(
+            bridge.bridge_status_topic,
+            "offline",
+            qos=bridge.config.mqtt.qos,
+            retain=True,
+        )
+
+    async def test_bus_connected_publishes_online(self, bridge: Bridge) -> None:
+        """BUS_CONNECTED event publishes online payload to bridge status topic."""
+        bridge._mqtt = AsyncMock()
+        bridge._on_lcn_event(LcnEvent.BUS_CONNECTED)
+        await asyncio.sleep(0)
+
+        bridge._mqtt.publish.assert_awaited_once_with(
+            bridge.bridge_status_topic,
+            "online",
+            qos=bridge.config.mqtt.qos,
+            retain=True,
+        )
+
+    async def test_unrelated_event_ignored(self, bridge: Bridge) -> None:
+        """Events other than BUS_CONNECTED/BUS_DISCONNECTED do not publish."""
+        bridge._mqtt = AsyncMock()
+        bridge._on_lcn_event(LcnEvent.PING_TIMEOUT)
+        await asyncio.sleep(0)
+
+        bridge._mqtt.publish.assert_not_awaited()

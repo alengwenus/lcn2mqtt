@@ -13,6 +13,7 @@ from pypck import inputs, lcn_defs
 from pypck.connection import PchkConnectionManager
 from pypck.device import DeviceConnection
 from pypck.lcn_addr import LcnAddr
+from pypck.lcn_defs import LcnEvent
 
 from .discovery import DiscoveryManager
 from .handlers.dispatcher import dispatch_input, dispatch_mqtt
@@ -40,6 +41,7 @@ class Bridge:
         self.devices: dict[LcnAddr, DeviceConfig] = config.devices
         self._discovery: DiscoveryManager | None = None
         self._on_lcn_input_tasks: set[asyncio.Task[None]] = set()
+        self._on_bus_event_tasks: set[asyncio.Task[None]] = set()
         # Tracks pending deferred publish timers keyed by (LcnAddr, cancel_key).
         self._deferred_timers: dict[str, asyncio.Task[None]] = {}
 
@@ -101,6 +103,7 @@ class Bridge:
                 await self._discover_modules()
 
             pchk.register_for_inputs(self._on_lcn_input)
+            pchk.register_for_events(self._on_lcn_event)
 
             await self._subscribe_command_topics(mqtt)
 
@@ -259,6 +262,29 @@ class Bridge:
             await self.ensure_device_complete(lcn_addr)
 
     # ---------- LCN -> MQTT ----------
+
+    def _on_lcn_event(self, event: LcnEvent) -> None:
+        """Schedules async handling of a bus event; pypck calls this synchronously."""
+        task = asyncio.create_task(self._handle_bus_event(event))
+        self._on_bus_event_tasks.add(task)
+        task.add_done_callback(self._on_bus_event_tasks.discard)
+
+    async def _handle_bus_event(self, event: LcnEvent) -> None:
+        """Publish bridge availability to MQTT on LCN bus connect/disconnect."""
+        if event is LcnEvent.BUS_DISCONNECTED:
+            _LOG.warning("LCN bus disconnected — marking bridge offline")
+            payload = LWT_PAYLOAD_OFFLINE
+        elif event is LcnEvent.BUS_CONNECTED:
+            _LOG.info("LCN bus connected — marking bridge online")
+            payload = LWT_PAYLOAD_ONLINE
+        else:
+            return
+        await self._mqtt.publish(
+            self.bridge_status_topic,
+            payload,
+            qos=self.config.mqtt.qos,
+            retain=True,
+        )
 
     def _on_lcn_input(self, inp: inputs.Input) -> None:
         """Schedules async dispatch from incoming LCN inputs."""
