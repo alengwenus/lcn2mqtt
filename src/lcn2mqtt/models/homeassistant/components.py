@@ -376,6 +376,7 @@ class ClimateComponent(BaseComponentModel):
     temperature_state_topic: str | None = None
     temperature_command_topic: str | None = None
     current_temperature_topic: str | None = None
+    temp_step: float = 1
     mode_state_topic: str | None = None
     mode_command_topic: str | None = None
     mode_command_template: str = '{{ "off" if value=="heat" else "on" }}'
