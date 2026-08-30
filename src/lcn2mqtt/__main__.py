@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import logging
-import signal
 
-from .bridge import Bridge
+from nicegui import app, ui
+
 from .models.config import load_config
+from .webui.app import setup_ui
+from .webui.manager import BridgeManager
+
+_LOG = logging.getLogger(__name__)
 
 
-def _setup_logging(level: str) -> logging.Logger:
-    """Configure logging with the specified log level."""
+def _setup_logging(level: str) -> None:
     root = logging.getLogger()
     root.setLevel(level)
     if not root.handlers:
@@ -21,46 +22,29 @@ def _setup_logging(level: str) -> logging.Logger:
             logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
         )
         root.addHandler(handler)
-    return root
-
-
-async def _amain() -> None:
-    """Start the bridge and run until interrupted."""
-    log = _setup_logging("INFO")
-    log.info("Starting lcn2mqtt bridge")
-    config = load_config()
-    log.setLevel(config.log_level)
-
-    bridge = Bridge(config)
-
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        with contextlib.suppress(NotImplementedError):
-            loop.add_signal_handler(sig, stop.set)
-
-    run_task = asyncio.create_task(bridge.run())
-    stop_task = asyncio.create_task(stop.wait())
-
-    done, pending = await asyncio.wait(
-        {run_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
-    )
-
-    for task in pending:
-        task.cancel()
-    for task in done:
-        exc = task.exception()
-        if exc is not None and not isinstance(exc, asyncio.CancelledError):
-            log.error("Bridge stopped with error: %s", exc)
-            raise exc
-
-    log.info("Shutting down")
 
 
 def main() -> None:
-    """Start the bridge and run until interrupted."""
-    with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(_amain())
+    """Start the bridge and NiceGUI WebUI."""
+    config = load_config()
+    _setup_logging(config.log_level)
+    _LOG.info("Starting lcn2mqtt")
+
+    manager = BridgeManager(config)
+
+    app.on_startup(manager.start)
+    app.on_shutdown(manager.stop)
+
+    setup_ui(manager)
+
+    ui.run(
+        host=config.webui.host,
+        port=config.webui.port,
+        title="lcn2mqtt",
+        favicon="🌉",
+        reload=False,
+        show=False,
+    )
 
 
 if __name__ == "__main__":

@@ -29,4 +29,6 @@ COPY --from=builder /build/.venv /build/.venv
 USER lcn2mqtt
 WORKDIR /lcn2mqtt
 
+EXPOSE 8080
+
 ENTRYPOINT ["lcn2mqtt"]

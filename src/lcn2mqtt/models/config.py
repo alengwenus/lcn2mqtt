@@ -111,6 +111,13 @@ class DiscoveryConfig(BaseModel):
     scan_modules: bool = True
 
 
+class WebUIConfig(BaseModel):
+    """WebUI server configuration."""
+
+    host: str = "0.0.0.0"
+    port: int = 8080
+
+
 class AppConfig(BaseSettings):
     """Main application configuration, including LCN and MQTT settings."""
 
@@ -129,6 +136,7 @@ class AppConfig(BaseSettings):
     mqtt: MqttConfig  # = Field(default_factory=MqttConfig)
     devices: dict[LcnAddr, DeviceConfig] = Field(default_factory=dict)
     homeassistant: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
+    webui: WebUIConfig = Field(default_factory=WebUIConfig)
 
     def __new__(
         cls,

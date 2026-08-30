@@ -12,5 +12,8 @@ services:
       - path: ./.env
         required: false
 
+    ports:
+      # host port follows LCN2MQTT__WEBUI__PORT env var, which must match webui.port in configuration.yaml
+      - "${LCN2MQTT__WEBUI__PORT:-8080}:8080"
     volumes:
       - ${LCN2MQTT__CONFIG_PATH:-./data}:/lcn2mqtt/data
