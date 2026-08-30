@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import ssl
 import logging
 import os
+import ssl
 from pathlib import Path
 from typing import Any, Literal
 
@@ -93,8 +93,7 @@ class MqttConfig(BaseModel):
         """Create SSLContext."""
         if self.cafile:
             self._ssl_context = ssl.create_default_context(
-                purpose=ssl.Purpose.SERVER_AUTH,
-                cafile=self.cafile
+                purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cafile
             )
         return self
 
@@ -102,6 +101,7 @@ class MqttConfig(BaseModel):
     def ssl_context(self) -> ssl.SSLContext | None:
         """Return the SSLContext."""
         return self._ssl_context
+
 
 class DiscoveryConfig(BaseModel):
     """Home Assistant MQTT Discovery configuration."""
