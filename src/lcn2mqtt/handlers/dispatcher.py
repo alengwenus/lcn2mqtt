@@ -1,5 +1,7 @@
 """Dispatcher for handling MQTT commands and routing them to the appropriate handlers."""
 
+from __future__ import annotations
+
 import re
 from collections.abc import Awaitable, Callable
 from functools import wraps

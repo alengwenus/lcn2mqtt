@@ -122,11 +122,13 @@ class Bridge:
             retain=True,
         )
         return aiomqtt.Client(
+            transport=cfg.transport,
             hostname=cfg.host,
             port=cfg.port,
             username=cfg.username,
             password=cfg.password,
             identifier=f"{self.config.mqtt.base_topic}",
+            tls_context=cfg.ssl_context,
             will=will,
         )
 

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import logging
 import os
+import ssl
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     field_validator,
     model_validator,
 )
@@ -79,9 +81,26 @@ class MqttConfig(BaseModel):
     base_topic: str = "lcn2mqtt"
     host: str
     port: int = 1883
+    transport: Literal["tcp", "websockets", "unix"] = "tcp"
     username: str | None = None
     password: str | None = None
     qos: int = 0
+    cafile: str | None = None
+    _ssl_context: ssl.SSLContext | None = PrivateAttr(default=None)
+
+    @model_validator(mode="after")
+    def _upper(self) -> MqttConfig:
+        """Create SSLContext."""
+        if self.cafile:
+            self._ssl_context = ssl.create_default_context(
+                purpose=ssl.Purpose.SERVER_AUTH, cafile=self.cafile
+            )
+        return self
+
+    @property
+    def ssl_context(self) -> ssl.SSLContext | None:
+        """Return the SSLContext."""
+        return self._ssl_context
 
 
 class DiscoveryConfig(BaseModel):
