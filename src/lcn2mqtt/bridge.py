@@ -260,7 +260,7 @@ class Bridge:
             len(self._pchk.device_connections),
         )
 
-        for lcn_addr in self._pchk.device_connections:
+        for lcn_addr in list(self._pchk.device_connections):
             await self.ensure_device_complete(lcn_addr)
 
     # ---------- LCN -> MQTT ----------
