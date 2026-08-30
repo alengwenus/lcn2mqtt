@@ -91,7 +91,6 @@ class MqttConfig(BaseModel):
     @model_validator(mode="after")
     def _upper(self) -> MqttConfig:
         """Create SSLContext."""
-        print(self.cafile)
         self._ssl_context = ssl.create_default_context(
             purpose=ssl.Purpose.SERVER_AUTH,
             cafile=self.cafile
