@@ -21,7 +21,8 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="/build/.venv/bin:$PATH"
 
 # Non-root user
-RUN useradd --system --create-home --uid 1000 lcn2mqtt
+RUN useradd --system --create-home --uid 1000 lcn2mqtt && \
+    mkdir -p /lcn2mqtt/data
 
 COPY --from=builder /build/.venv /build/.venv
 
