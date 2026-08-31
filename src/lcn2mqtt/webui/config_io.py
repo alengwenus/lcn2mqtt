@@ -30,6 +30,37 @@ def read_yaml() -> dict[str, Any]:
         return {}
 
 
+def get_env_overrides() -> dict[str, str]:
+    """Return dot-path -> value for fields set by env variables or .env file."""
+    _PREFIX = "LCN2MQTT__"
+    overrides: dict[str, str] = {}
+
+    def _register(raw_key: str, value: str) -> None:
+        tail = raw_key[len(_PREFIX) :]
+        overrides[".".join(tail.lower().split("__"))] = value
+
+    env_file = Path(".env")
+    if env_file.exists():
+        try:
+            with env_file.open(encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, _, val = line.partition("=")
+                        key = key.strip()
+                        if key.upper().startswith(_PREFIX):
+                            _register(key.upper(), val.strip())
+        except OSError:
+            pass
+
+    # env vars take precedence over .env
+    for key in os.environ:
+        if key.upper().startswith(_PREFIX):
+            _register(key.upper(), os.environ[key])
+
+    return overrides
+
+
 def write_yaml(data: dict[str, Any]) -> None:
     """Write a dict to the YAML config file."""
     path = get_config_path()
