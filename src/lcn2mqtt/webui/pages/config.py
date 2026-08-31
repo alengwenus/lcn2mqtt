@@ -23,10 +23,20 @@ def register(manager: BridgeManager) -> None:
         cfg = read_yaml()
         env_overrides = get_env_overrides()
 
+        ui.add_css(
+            ".env-override .q-field__native { color: var(--q-warning) !important; }"
+        )
+
         def _env_mark(element: Any, path: str) -> None:
             if path in env_overrides:
                 val = env_overrides[path].replace("'", "")
-                element.props(f"hint='\u26a0 Overridden by environment [{val}]'")
+                element.tooltip(f"\u26a0 Overridden by environment [{val}]")
+                if isinstance(element, ui.select):
+                    element.classes("env-override")
+                elif isinstance(element, ui.switch):
+                    element.props("color=warning")
+                else:
+                    element.props("input-class='text-warning'")
 
         with ui.column().classes("w-full max-w-lg p-4 gap-2"):
             # Controls are free variables resolved at call time, not here.
