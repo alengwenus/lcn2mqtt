@@ -20,32 +20,30 @@ def register(manager: BridgeManager) -> None:
         with ui.column().classes("w-full max-w-lg p-4 gap-4"):
             ui.label("General Settings").classes("text-h5")
 
-            with ui.card().classes("w-full"):
-                with ui.card_section().classes("column gap-4"):
-                    log_level = ui.select(
-                        ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                        label="Log level",
-                        value=(cfg.get("log_level") or "INFO").upper(),
-                    ).classes("w-full")
-                    retained = ui.switch(
-                        "Retain broker states on restart",
-                        value=cfg.get("retained_broker_states", True),
+            log_level = ui.select(
+                ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                label="Log level",
+                value=(cfg.get("log_level") or "INFO").upper(),
+            ).classes("w-full")
+            retained = ui.switch(
+                "Retain broker states on restart",
+                value=cfg.get("retained_broker_states", True),
+            )
+
+            async def save() -> None:
+                try:
+                    write_keys(
+                        {
+                            "log_level": log_level.value.lower(),
+                            "retained_broker_states": retained.value,
+                        }
                     )
+                    manager.restart_needed = True
+                    banner.refresh()
+                    ui.notify("Saved", type="positive")
+                except Exception as exc:
+                    ui.notify(str(exc), type="negative")
 
-                with ui.card_actions():
-
-                    async def save() -> None:
-                        try:
-                            write_keys(
-                                {
-                                    "log_level": log_level.value.lower(),
-                                    "retained_broker_states": retained.value,
-                                }
-                            )
-                            manager.restart_needed = True
-                            banner.refresh()
-                            ui.notify("Saved", type="positive")
-                        except Exception as exc:
-                            ui.notify(str(exc), type="negative")
-
-                    ui.button("Save", on_click=save, color="primary")
+            ui.separator()
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Save", on_click=save, color="primary")

@@ -9,10 +9,7 @@ from nicegui import ui
 from .manager import BridgeManager
 
 _NAV = [
-    ("General", "/general"),
-    ("LCN", "/lcn"),
-    ("MQTT", "/mqtt"),
-    ("Home Assistant", "/homeassistant"),
+    ("Configuration", "/config"),
     ("Devices", "/devices"),
 ]
 
@@ -79,14 +76,11 @@ def page_frame(manager: BridgeManager) -> Any:
 
 def setup_ui(manager: BridgeManager) -> None:
     """Register all WebUI pages with NiceGUI."""
-    from .pages import devices, general, homeassistant, lcn, mqtt  # noqa: PLC0415
+    from .pages import config, devices  # noqa: PLC0415
 
-    general.register(manager)
-    lcn.register(manager)
-    mqtt.register(manager)
-    homeassistant.register(manager)
+    config.register(manager)
     devices.register(manager)
 
     @ui.page("/")
     def root() -> None:
-        ui.navigate.to("/general")
+        ui.navigate.to("/config")

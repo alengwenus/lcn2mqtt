@@ -21,36 +21,34 @@ def register(manager: BridgeManager) -> None:
         with ui.column().classes("w-full max-w-lg p-4 gap-4"):
             ui.label("Home Assistant Discovery").classes("text-h5")
 
-            with ui.card().classes("w-full"):
-                with ui.card_section().classes("column gap-4"):
-                    enabled = ui.switch(
-                        "Enable MQTT discovery",
-                        value=d.get("enabled", False),
+            enabled = ui.switch(
+                "Enable MQTT discovery",
+                value=d.get("enabled", False),
+            )
+            prefix = ui.input(
+                "Discovery prefix",
+                value=d.get("prefix", "homeassistant"),
+            ).classes("w-full")
+            scan_modules = ui.switch(
+                "Scan for modules on startup",
+                value=d.get("scan_modules", True),
+            )
+
+            async def save() -> None:
+                try:
+                    write_keys(
+                        {
+                            "homeassistant": {
+                                "enabled": enabled.value,
+                                "prefix": prefix.value,
+                                "scan_modules": scan_modules.value,
+                            }
+                        }
                     )
-                    prefix = ui.input(
-                        "Discovery prefix",
-                        value=d.get("prefix", "homeassistant"),
-                    ).classes("w-full")
-                    scan_modules = ui.switch(
-                        "Scan for modules on startup",
-                        value=d.get("scan_modules", True),
-                    )
+                    ui.notify("Saved", type="positive")
+                except Exception as exc:
+                    ui.notify(str(exc), type="negative")
 
-                with ui.card_actions():
-
-                    async def save() -> None:
-                        try:
-                            write_keys(
-                                {
-                                    "homeassistant": {
-                                        "enabled": enabled.value,
-                                        "prefix": prefix.value,
-                                        "scan_modules": scan_modules.value,
-                                    }
-                                }
-                            )
-                            ui.notify("Saved", type="positive")
-                        except Exception as exc:
-                            ui.notify(str(exc), type="negative")
-
-                    ui.button("Save", on_click=save, color="primary")
+            ui.separator()
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Save", on_click=save, color="primary")
