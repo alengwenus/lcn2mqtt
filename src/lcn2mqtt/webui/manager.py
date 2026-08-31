@@ -19,6 +19,7 @@ class BridgeManager:
         """Initialize the manager with the given config."""
         self.config = config
         self._task: asyncio.Task[None] | None = None
+        self._bridge: Bridge | None = None
         self.restart_needed: bool = False
 
     @property
@@ -30,8 +31,8 @@ class BridgeManager:
         """Start the bridge as a background asyncio task."""
         if self.is_running:
             return
-        bridge = Bridge(self.config)
-        self._task = asyncio.create_task(bridge.run(), name="bridge")
+        self._bridge = Bridge(self.config)
+        self._task = asyncio.create_task(self._bridge.run(), name="bridge")
         _LOG.info("Bridge started")
 
     async def stop(self) -> None:
@@ -41,6 +42,7 @@ class BridgeManager:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
             self._task = None
+        self._bridge = None
         _LOG.info("Bridge stopped")
 
     async def restart(self) -> None:
@@ -49,3 +51,15 @@ class BridgeManager:
         self.config = load_config()
         await self.start()
         _LOG.info("Bridge restarted")
+
+    async def scan_modules(self) -> list[str]:
+        """Scan the LCN bus; return address strings of discovered modules."""
+        if self._bridge is None or not self.is_running:
+            raise RuntimeError("Bridge is not running")
+        pchk = getattr(self._bridge, "_pchk", None)
+        if pchk is None:
+            raise RuntimeError("Bridge is not yet connected")
+        await pchk.scan_modules()
+        return [
+            addr.to_string() for addr in pchk.device_connections if not addr.is_group
+        ]

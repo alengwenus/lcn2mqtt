@@ -50,8 +50,29 @@ def register(manager: BridgeManager) -> None:
             for addr_str, device_data in devices.items():
                 _device_card(addr_str, device_data or {}, device_list)
 
+        async def scan() -> None:
+            try:
+                found = await manager.scan_modules()
+            except RuntimeError as exc:
+                ui.notify(str(exc), type="negative")
+                return
+            cfg = read_yaml()
+            devs: dict[str, Any] = cfg.get("devices") or {}
+            new_addrs = [a for a in found if a not in devs]
+            if not new_addrs:
+                ui.notify("No new modules found", type="info")
+                return
+            for addr_str in new_addrs:
+                devs[addr_str] = {}
+            cfg["devices"] = devs
+            write_yaml(cfg)
+            device_list.refresh()
+            ui.notify(f"Added {len(new_addrs)} new module(s)", type="positive")
+
         with ui.column().classes("w-full p-4 gap-6"):
-            ui.label("Devices").classes("text-h5")
+            with ui.row().classes("w-full items-center justify-between"):
+                ui.label("Devices").classes("text-h5")
+                ui.button("Scan", icon="radar", on_click=scan, color="secondary")
 
             # ── Add device ──
             with ui.card().classes("w-full max-w-2xl"):
