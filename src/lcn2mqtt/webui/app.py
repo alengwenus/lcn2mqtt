@@ -8,9 +8,12 @@ from nicegui import ui
 
 from .manager import BridgeManager
 
+# from .pages import general
+
 _NAV = [
-    ("Configuration", "/config"),
+    ("General", "/general"),
     ("Devices", "/devices"),
+    ("Discovery", "/discovery"),
 ]
 
 
@@ -76,11 +79,12 @@ def page_frame(manager: BridgeManager) -> Any:
 
 def setup_ui(manager: BridgeManager) -> None:
     """Register all WebUI pages with NiceGUI."""
-    from .pages import config, devices  # noqa: PLC0415
+    from .pages import devices, discovery, general  # noqa: PLC0415
 
-    config.register(manager)
+    general.register(manager)
     devices.register(manager)
+    discovery.register(manager)
 
     @ui.page("/")
     def root() -> None:
-        ui.navigate.to("/config")
+        ui.navigate.to("/general")
