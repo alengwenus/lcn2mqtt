@@ -10,10 +10,14 @@ from .manager import BridgeManager
 
 # from .pages import general
 
-_NAV = [
+_CONFIG = [
     ("General", "/general"),
     ("Devices", "/devices"),
     ("Discovery", "/discovery"),
+]
+
+_MONITOR = [
+    ("Modules", "/modules"),
 ]
 
 
@@ -58,7 +62,13 @@ def page_frame(manager: BridgeManager) -> Any:
         "bg-indigo-50 border-r border-indigo-200 p-2"
     ) as drawer:
         ui.label("Configuration").classes("text-overline text-grey-7 px-2 pt-2 pb-1")
-        for label, path in _NAV:
+        for label, path in _CONFIG:
+            ui.button(label, on_click=lambda p=path: ui.navigate.to(p)).classes(
+                "w-full justify-start"
+            ).props("flat no-caps align=left")
+
+        ui.label("Monitor").classes("text-overline text-grey-7 px-2 pt-2 pb-1")
+        for label, path in _MONITOR:
             ui.button(label, on_click=lambda p=path: ui.navigate.to(p)).classes(
                 "w-full justify-start"
             ).props("flat no-caps align=left")
@@ -79,11 +89,12 @@ def page_frame(manager: BridgeManager) -> Any:
 
 def setup_ui(manager: BridgeManager) -> None:
     """Register all WebUI pages with NiceGUI."""
-    from .pages import devices, discovery, general  # noqa: PLC0415
+    from .pages import devices, discovery, general, modules  # noqa: PLC0415
 
     general.register(manager)
     devices.register(manager)
     discovery.register(manager)
+    modules.register(manager)
 
     @ui.page("/")
     def root() -> None:
