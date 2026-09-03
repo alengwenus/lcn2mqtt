@@ -9,6 +9,7 @@ from pypck import lcn_defs
 
 from ..app import page_frame
 from ..config_io import read_yaml, write_yaml
+from ..helpers import device_title
 from ..manager import BridgeManager
 
 _VAR_UNIT_OPTS: dict[str, str] = {
@@ -50,7 +51,9 @@ def register(manager: BridgeManager) -> None:
                 return
 
             for addr_str, device_data in devices.items():
-                _device_card(addr_str, device_data or {}, device_list, save_fns)
+                _device_card(
+                    manager, addr_str, device_data or {}, device_list, save_fns
+                )
 
         async def save_all() -> None:
             for fn in save_fns:
@@ -129,12 +132,16 @@ def register(manager: BridgeManager) -> None:
 
 
 def _device_card(
-    addr_str: str, device_data: dict[str, Any], refresh_fn: Any, save_fns: list[Any]
+    manager: BridgeManager,
+    addr_str: str,
+    device_data: dict[str, Any],
+    refresh_fn: Any,
+    save_fns: list[Any],
 ) -> None:
     """Render one expandable device card."""
-    with ui.expansion(addr_str, icon="device_hub").classes(
-        "w-full max-w-4xl border border-grey-3 rounded"
-    ):
+    with ui.expansion(
+        device_title(manager, addr_str, device_data), icon="device_hub"
+    ).classes("w-full max-w-4xl border border-grey-3 rounded"):
         # Delete button row
         with ui.row().classes("justify-end w-full pb-1"):
 

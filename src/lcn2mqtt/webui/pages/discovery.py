@@ -9,6 +9,7 @@ from nicegui import ui
 
 from ..app import page_frame
 from ..config_io import read_yaml, write_yaml
+from ..helpers import device_title
 from ..manager import BridgeManager
 
 
@@ -32,7 +33,7 @@ def register(manager: BridgeManager) -> None:
                 return
 
             for addr_str, device_data in devices.items():
-                _ha_device_card(addr_str, device_data or {}, save_fns)
+                _ha_device_card(manager, addr_str, device_data or {}, save_fns)
 
         async def save_all() -> None:
             for fn in save_fns:
@@ -48,16 +49,19 @@ def register(manager: BridgeManager) -> None:
 
 
 def _ha_device_card(
-    addr_str: str, device_data: dict[str, Any], save_fns: list[Any]
+    manager: BridgeManager,
+    addr_str: str,
+    device_data: dict[str, Any],
+    save_fns: list[Any],
 ) -> None:
     """Render one device's Home Assistant configuration card."""
     ha_data = device_data.get("homeassistant") or {}
     inc_val = list(ha_data.get("include") or [])
     exc_val = list(ha_data.get("exclude") or [])
 
-    with ui.expansion(addr_str, icon="home").classes(
-        "w-full max-w-4xl border border-grey-3 rounded"
-    ):
+    with ui.expansion(
+        device_title(manager, addr_str, device_data), icon="home"
+    ).classes("w-full max-w-4xl border border-grey-3 rounded"):
         with ui.column().classes("w-full p-4 gap-4"):
             include_chips = ui.input_chips("Include", value=inc_val).classes("w-full")
             exclude_chips = ui.input_chips("Exclude", value=exc_val).classes("w-full")
